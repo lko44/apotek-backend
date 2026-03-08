@@ -1,0 +1,198 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  KASIR
+}
+
+enum StatusPembelian {
+  LUNAS
+  BELUM_DIBAYAR
+  DIKEMBALIKAN
+}
+
+enum MetodeBayar {
+  TUNAI
+  QRIS
+  TRANSFER
+}
+
+enum TipeLog {
+  MASUK
+  KELUAR
+  KOREKSI
+}
+
+// =====================
+// MODELS
+// =====================
+
+model Kategori {
+  id_kategori   Int      @id @default(autoincrement())
+  nama_kategori String
+  created_at    DateTime @default(now())
+
+  produk Produk[]
+}
+
+model Produk {
+  id_produk    Int      @id @default(autoincrement())
+  nama_produk  String
+  barcode      String   @unique
+  id_kategori  Int
+  satuan       String
+  stok_minimum Int
+  harga_jual   Decimal
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  kategori         Kategori          @relation(fields: [id_kategori], references: [id_kategori])
+  pembelianDetails PembelianDetail[]
+  batchProduks     BatchProduk[]
+  transaksiDetails TransaksiDetail[]
+  logStoks         LogStok[]
+}
+
+model User {
+  id_user       Int      @id @default(autoincrement())
+  nama          String
+  email         String   @unique
+  password_hash String
+  role          Role
+  is_active     Boolean  @default(false)
+  created_at    DateTime @default(now())
+
+  verifications VerificationCode[]
+
+  pembelian Pembelian[]
+  transaksi Transaksi[]
+}
+
+model Supplier {
+  id_supplier   Int      @id @default(autoincrement())
+  nama_supplier String
+  email         String?
+  telepon       String?
+  alamat        String?  @db.Text
+  created_at    DateTime @default(now())
+
+  pembelian Pembelian[]
+}
+
+model Pembelian {
+  id_pembelian        Int             @id @default(autoincrement())
+  no_faktur           String          @unique
+  tanggal_faktur      DateTime
+  tanggal_jatuh_tempo DateTime?
+  status              StatusPembelian
+  total               Decimal         @db.Decimal(15, 2)
+  id_supplier         Int
+  id_user             Int
+  created_at          DateTime        @default(now())
+
+  supplier Supplier @relation(fields: [id_supplier], references: [id_supplier])
+  user     User     @relation(fields: [id_user], references: [id_user])
+
+  pembelian_detail PembelianDetail[]
+  batch_produk     BatchProduk[]
+}
+
+model PembelianDetail {
+  id_pembelian_detail Int     @id @default(autoincrement())
+  id_pembelian        Int
+  id_produk           Int
+  qty                 Int
+  harga_beli          Decimal @db.Decimal(15, 2)
+
+  pembelian Pembelian @relation(fields: [id_pembelian], references: [id_pembelian])
+  produk    Produk    @relation(fields: [id_produk], references: [id_produk])
+}
+
+model BatchProduk {
+  id_batch     Int      @id @default(autoincrement())
+  id_produk    Int
+  id_pembelian Int
+  expired_date DateTime
+  qty_masuk    Int
+  qty_sisa     Int
+  created_at   DateTime @default(now())
+
+  produk    Produk    @relation(fields: [id_produk], references: [id_produk])
+  pembelian Pembelian @relation(fields: [id_pembelian], references: [id_pembelian])
+
+  transaksi_batch TransaksiBatch[]
+}
+
+model Transaksi {
+  id_transaksi      Int         @id @default(autoincrement())
+  no_transaksi      String      @unique
+  tanggal_transaksi DateTime    @default(now())
+  metode_bayar      MetodeBayar
+  total             Decimal     @db.Decimal(15, 2)
+  id_user           Int
+
+  user             User              @relation(fields: [id_user], references: [id_user])
+  transaksi_detail TransaksiDetail[]
+}
+
+model TransaksiDetail {
+  id_transaksi_detail Int     @id @default(autoincrement())
+  id_transaksi        Int
+  id_produk           Int
+  qty                 Int
+  harga_jual          Decimal @db.Decimal(15, 2)
+  subtotal            Decimal @db.Decimal(15, 2)
+
+  transaksi Transaksi @relation(fields: [id_transaksi], references: [id_transaksi])
+  produk    Produk    @relation(fields: [id_produk], references: [id_produk])
+
+  transaksi_batch TransaksiBatch[]
+}
+
+model TransaksiBatch {
+  id_transaksi_batch  Int @id @default(autoincrement())
+  id_transaksi_detail Int
+  id_batch            Int
+  qty_keluar          Int
+
+  transaksi_detail TransaksiDetail @relation(fields: [id_transaksi_detail], references: [id_transaksi_detail])
+  batch_produk     BatchProduk     @relation(fields: [id_batch], references: [id_batch])
+}
+
+model LogStok {
+  id_log     Int      @id @default(autoincrement())
+  id_produk  Int
+  tipe       TipeLog
+  qty        Int
+  sumber     String // Bisa "PEMBELIAN", "TRANSAKSI", atau "MANUAL"
+  created_at DateTime @default(now())
+
+  produk Produk @relation(fields: [id_produk], references: [id_produk])
+}
+
+model VerificationCode {
+  id_code    Int      @id @default(autoincrement())
+  email      String
+  code       String
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  id_user Int
+
+  user User @relation(fields: [id_user], references: [id_user])
+}
