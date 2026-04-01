@@ -1,13 +1,16 @@
 const prisma = require("../lib/prisma")
 
 exports.createTransaksi = async (req, res) => {
-
     try {
+        const { metode_bayar, items } = req.body;
+        
+        const id_user = req.user.id; 
 
-        const { metode_bayar, id_user, items } = req.body
+        if (!items || items.length === 0) {
+            return res.status(400).json({ message: "Keranjang belanja kosong!" });
+        }
 
         const result = await prisma.$transaction(async (tx) => {
-
             const transaksi = await tx.transaksi.create({
                 data: {
                     no_transaksi: "TRX-" + Date.now(),
@@ -15,20 +18,19 @@ exports.createTransaksi = async (req, res) => {
                     total: 0,
                     user: { connect: { id_user: parseInt(id_user) } }
                 }
-            })
+            });
 
-            let total = 0
+            let grandTotal = 0;
 
             for (const item of items) {
                 const produk = await tx.produk.findUnique({
                     where: { barcode: item.barcode }
-                })
+                });
 
-                if (!produk) {
-                    throw new Error(`Produk dengan barcode ${item.barcode} tidak ditemukan`)
-                }
+                if (!produk) throw new Error(`Produk dengan barcode ${item.barcode} tidak ditemukan`);
+                if (!produk.is_active) throw new Error(`Produk ${produk.nama_produk} sudah tidak aktif`);
 
-                let sisa = item.qty
+                let sisaQtyYangMauDibeli = item.qty;
 
                 const batches = await tx.batchProduk.findMany({
                     where: {
@@ -36,7 +38,12 @@ exports.createTransaksi = async (req, res) => {
                         qty_sisa: { gt: 0 }
                     },
                     orderBy: { expired_date: "asc" }
-                })
+                });
+
+                const totalStokTersedia = batches.reduce((acc, curr) => acc + curr.qty_sisa, 0);
+                if (totalStokTersedia < item.qty) {
+                    throw new Error(`Stok ${produk.nama_produk} tidak cukup. Tersisa: ${totalStokTersedia}`);
+                }
 
                 const detail = await tx.transaksiDetail.create({
                     data: {
@@ -44,41 +51,33 @@ exports.createTransaksi = async (req, res) => {
                         id_produk: produk.id_produk,
                         qty: item.qty,
                         harga_jual: produk.harga_jual,
-                        subtotal: 0
+                        subtotal: 0 
                     }
-                })
+                });
 
-                let subtotalItem = 0
+                let subtotalItem = 0;
 
                 for (const batch of batches) {
-                    if (sisa <= 0) break;
-                    const ambil = Math.min(batch.qty_sisa, sisa);
+                    if (sisaQtyYangMauDibeli <= 0) break;
+                    
+                    const ambilDariBatchIni = Math.min(batch.qty_sisa, sisaQtyYangMauDibeli);
 
                     await tx.batchProduk.update({
                         where: { id_batch: batch.id_batch },
-                        data: {
-                            qty_sisa: { decrement: ambil }
-                        }
-                    });
-
-                    await tx.produk.update({
-                        where: { id_produk: produk.id_produk },
-                        data: { stok_minimum: { decrement: ambil } }
+                        data: { qty_sisa: { decrement: ambilDariBatchIni } }
                     });
 
                     await tx.transaksiBatch.create({
-                        data: { 
+                        data: {
                             id_transaksi_detail: detail.id_transaksi_detail,
                             id_batch: batch.id_batch,
-                            qty_keluar: ambil
+                            qty_keluar: ambilDariBatchIni
                         }
                     });
 
-                    sisa -= ambil;
-                    subtotalItem += ambil * Number(produk.harga_jual);
+                    sisaQtyYangMauDibeli -= ambilDariBatchIni;
+                    subtotalItem += ambilDariBatchIni * Number(produk.harga_jual);
                 }
-
-                if (sisa > 0) throw new Error(`Stok ${produk.nama_produk} tidak cukup`);
 
                 await tx.transaksiDetail.update({
                     where: { id_transaksi_detail: detail.id_transaksi_detail },
@@ -92,33 +91,33 @@ exports.createTransaksi = async (req, res) => {
                         qty: item.qty,
                         sumber: "TRANSAKSI"
                     }
-                })
+                });
 
-                total += subtotalItem;
+                grandTotal += subtotalItem;
             }
+
             const transaksiFinal = await tx.transaksi.update({
                 where: { id_transaksi: transaksi.id_transaksi },
-                data: { total: total },
+                data: { total: grandTotal },
                 include: {
-                    transaksi_detail: true
+                    transaksi_detail: {
+                        include: { produk: { select: { nama_produk: true } } }
+                    }
                 }
-            })
+            });
 
-            return transaksiFinal
-        })
+            return transaksiFinal; 
+        });
 
-        res.status(201).json(result)
+        res.status(201).json({
+            message: "Transaksi berhasil",
+            data: result
+        });
 
     } catch (error) {
-
-        res.status(400).json({
-            error: "Transaksi gagal",
-            message: error.message
-        })
-
+        res.status(400).json({ message: error.message });
     }
-
-}
+};
 
 exports.getAllTransaksi = async (req, res) => {
     try {

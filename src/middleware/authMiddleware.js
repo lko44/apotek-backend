@@ -1,31 +1,65 @@
 const jwt = require("jsonwebtoken");
+const prisma = require("../lib/prisma"); // optional (buat cek user)
 
-function authMiddleware(req, res, next) {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({
-            message: "Format token salah atau token tidak ditemukan"
-        });
-    }
-
-    const token = authHeader.split(" ")[1];
-
+async function authMiddleware(req, res, next) {
     try {
-        const decoded = jwt.verify(token, "SECRET_KEY");
+        const authHeader = req.headers.authorization;
 
-        if (!decoded.id_user && !decoded.id) {
-            return res.status(403).json({
-                message: "Token valid tapi tidak berisi identitas user (Payload Invalid)"
+        // 🔥 cek header
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return res.status(401).json({
+                message: "Token tidak ditemukan / format salah"
             });
         }
 
-        req.user = decoded;
-        
+        const token = authHeader.split(" ")[1];
+
+        if (!token) {
+            return res.status(401).json({
+                message: "Token kosong"
+            });
+        }
+
+        // 🔥 verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        if (!decoded.id) {
+            return res.status(401).json({
+                message: "Payload token tidak valid"
+            });
+        }
+
+        // 🔥 OPTIONAL (RECOMMENDED): cek user masih ada di DB
+        const user = await prisma.user.findUnique({
+            where: { id_user: decoded.id }
+        });
+
+        if (!user) {
+            return res.status(401).json({
+                message: "User tidak ditemukan"
+            });
+        }
+
+        // 🔥 attach ke request (clean)
+        req.user = {
+            id: user.id_user,
+            role: user.role
+        };
+
         next();
+
     } catch (err) {
-        const message = err.name === "TokenExpiredError" ? "Token sudah kadaluwarsa" : "Token tidak valid";
-        return res.status(403).json({ message });
+        console.error("AUTH ERROR:", err);
+
+        if (err.name === "TokenExpiredError") {
+            return res.status(401).json({
+                message: "Token expired"
+            });
+        }
+
+        return res.status(401).json({
+            message: "Token tidak valid"
+        });
     }
 }
 

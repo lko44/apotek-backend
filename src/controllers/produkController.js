@@ -1,16 +1,16 @@
 const prisma = require("../lib/prisma")
 
 exports.getProduk = async (req, res) => {
-
-    const produk = await prisma.produk.findMany({
-        include: {
-            kategori: true
-        }
-    })
-
-    res.json(produk)
-
-}
+    try {
+        const produk = await prisma.produk.findMany({
+            where: { is_active: true }, // Jangan tampilin yang udah di-delete
+            include: { kategori: true }
+        });
+        res.json(produk);
+    } catch (error) {
+        res.status(500).json({ error: "Gagal ambil data" });
+    }
+};
 exports.getProdukById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -79,19 +79,26 @@ exports.createProduk = async (req, res) => {
     }
 }
 exports.updateProduk = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nama_produk, id_kategori, satuan, stok_minimum, harga_jual } = req.body;
 
-    const { id } = req.params
+        const produk = await prisma.produk.update({
+            where: { id_produk: parseInt(id) },
+            data: {
+                nama_produk,
+                id_kategori: id_kategori ? parseInt(id_kategori) : undefined,
+                satuan,
+                stok_minimum: stok_minimum ? parseInt(stok_minimum) : undefined,
+                harga_jual: harga_jual ? parseFloat(harga_jual) : undefined,
+            }
+        });
 
-    const produk = await prisma.produk.update({
-        where: {
-            id_produk: parseInt(id)
-        },
-        data: req.body
-    })
-
-    res.json(produk)
-
-}
+        res.json({ message: "Update sukses", data: produk });
+    } catch (error) {
+        res.status(500).json({ error: "Gagal update produk. Cek apakah ID benar." });
+    }
+};
 exports.deleteProduk = async (req, res) => {
 
     const { id } = req.params
@@ -153,7 +160,7 @@ exports.getStokProduk = async (req, res) => {
             },
             _sum: {
                 qty_sisa: true
-            }
+            } 
         })
 
         res.json({
@@ -171,44 +178,25 @@ exports.getStokProduk = async (req, res) => {
     }
 }
 exports.getStokMenipis = async (req, res) => {
-  try {
+    try {
+        const semuaProduk = await prisma.produk.findMany({
+            where: { is_active: true },
+            select: { id_produk: true, nama_produk: true, barcode: true, stok_minimum: true }
+        });
 
-    const data = await prisma.batchProduk.groupBy({
-      by: ["id_produk"],
-      _sum: {
-        qty_sisa: true
-      }
-    })
+        const agregatStok = await prisma.batchProduk.groupBy({
+            by: ["id_produk"],
+            _sum: { qty_sisa: true }
+        });
 
-    const stokMenipis = data.filter(d => d._sum.qty_sisa < 10)
+        const result = semuaProduk.map(p => {
+            const batch = agregatStok.find(s => s.id_produk === p.id_produk);
+            const totalStok = batch ? batch._sum.qty_sisa : 0;
+            return { ...p, stok: totalStok };
+        }).filter(p => p.stok < p.stok_minimum);
 
-    const produkIds = stokMenipis.map(d => d.id_produk)
-
-    const produk = await prisma.produk.findMany({
-      where: {
-        id_produk: {
-          in: produkIds
-        }
-      }
-    })
-
-    const result = produk.map(p => {
-      const stok = stokMenipis.find(s => s.id_produk === p.id_produk)
-
-      return {
-        id_produk: p.id_produk,
-        nama_produk: p.nama_produk,
-        barcode: p.barcode,
-        stok: stok._sum.qty_sisa
-      }
-    })
-
-    res.json(result)
-
-  } catch (error) {
-    res.status(500).json({
-      error: "Gagal mengambil stok menipis",
-      message: error.message
-    })
-  }
-}
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: "Gagal cek stok menipis" });
+    }
+};
