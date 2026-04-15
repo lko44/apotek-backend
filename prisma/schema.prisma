@@ -43,7 +43,8 @@ enum TipeLog {
 
 model Kategori {
   id_kategori   Int      @id @default(autoincrement())
-  nama_kategori String
+  nama_kategori String   @unique
+  is_active     Boolean  @default(true)
   created_at    DateTime @default(now())
 
   produk Produk[]
