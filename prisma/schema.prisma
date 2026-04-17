@@ -72,16 +72,16 @@ model Produk {
 model User {
   id_user       Int      @id @default(autoincrement())
   nama          String
+  username      String   @unique
   email         String   @unique
   password_hash String
   role          Role
-  is_active     Boolean  @default(false)
+  is_active     Boolean  @default(true) // Changed to true as per your update
   created_at    DateTime @default(now())
 
   verifications VerificationCode[]
-
-  pembelian Pembelian[]
-  transaksi Transaksi[]
+  pembelian     Pembelian[]
+  transaksi     Transaksi[]
 }
 
 model Supplier {
