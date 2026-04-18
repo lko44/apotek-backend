@@ -9,20 +9,24 @@ const roleMiddleware = require("../middleware/roleMiddleware");
  * /api/v1/auth/login:
  *   post:
  *     tags: [Auth]
- *     summary: Login user menggunakan username
+ *     summary: Login menggunakan username
+ *     description: Digunakan oleh ADMIN, STAFF, atau KASIR untuk masuk ke sistem
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - username
+ *               - password
  *             properties:
  *               username:
  *                 type: string
- *                 example: admin
+ *                 example: kasir
  *               password:
  *                 type: string
- *                 example: 123456
+ *                 example: kasir123
  *     responses:
  *       200:
  *         description: Login berhasil
@@ -34,6 +38,8 @@ const roleMiddleware = require("../middleware/roleMiddleware");
  *                 token:
  *                   type: string
  *                   example: jwt_token_disini
+ *       400:
+ *         description: Input tidak lengkap
  *       401:
  *         description: Username atau password salah
  */
@@ -44,7 +50,8 @@ router.post("/login", auth.login);
  * /api/v1/auth/reset-password/{id}:
  *   put:
  *     tags: [Auth]
- *     summary: Reset password user oleh OWNER
+ *     summary: Reset password user oleh ADMIN
+ *     description: Hanya ADMIN yang dapat mengganti password user lain
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -61,6 +68,8 @@ router.post("/login", auth.login);
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - newPassword
  *             properties:
  *               newPassword:
  *                 type: string
@@ -68,17 +77,19 @@ router.post("/login", auth.login);
  *     responses:
  *       200:
  *         description: Password berhasil direset
+ *       400:
+ *         description: Password baru tidak diisi
  *       401:
  *         description: Token tidak valid / tidak ada
  *       403:
- *         description: Bukan OWNER (akses ditolak)
+ *         description: Akses ditolak (bukan ADMIN)
  *       404:
  *         description: User tidak ditemukan
  */
 router.put(
   "/reset-password/:id",
   authMiddleware,
-  roleMiddleware("OWNER"),
+  roleMiddleware("ADMIN"), // 🔥 FIX: sesuai schema lu
   auth.resetPasswordByOwner
 );
 
