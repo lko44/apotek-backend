@@ -4,9 +4,9 @@ const batch = require("../controllers/batchControllers")
 
 /**
  * @openapi
- * /api/v1/batch/hampir-expired:
+ * batch/hampir-expired:
  *   get:
- *     tags: [Batch]
+ *     tags: [hampir-expired]
  *     summary: Mendapatkan daftar batch obat yang hampir expired
  *     description: Mengambil data batch obat yang tanggal kadaluarsanya sudah mendekati batas tertentu.
  *     responses:

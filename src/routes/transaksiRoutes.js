@@ -1,6 +1,6 @@
 const express = require("express")
 const router = express.Router()
-
+const auth = require("../middleware/authMiddleware")
 const transaksiController = require("../controllers/transaksiController")
 
 /**
@@ -8,42 +8,44 @@ const transaksiController = require("../controllers/transaksiController")
  * /api/v1/transaksi:
  *   post:
  *     tags: [Transaksi]
- *     summary: Membuat transaksi penjualan obat
+ *     summary: Membuat transaksi penjualan
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - metode_bayar
+ *               - items
  *             properties:
- *               tanggal:
- *                 type: string
- *                 example: 2026-03-14
- *               total:
- *                 type: number
- *                 example: 15000
  *               metode_bayar:
  *                 type: string
- *                 example: cash
+ *                 enum: [CASH, QRIS, TRANSFER]
+ *                 example: CASH
  *               items:
  *                 type: array
  *                 items:
  *                   type: object
+ *                   required:
+ *                     - barcode
+ *                     - qty
  *                   properties:
- *                     produk_id:
- *                       type: integer
- *                       example: 1
+ *                     barcode:
+ *                       type: string
+ *                       example: 8999990001234
  *                     qty:
  *                       type: integer
  *                       example: 2
- *                     harga:
- *                       type: number
- *                       example: 5000
  *     responses:
  *       201:
  *         description: Transaksi berhasil dibuat
+ *       400:
+ *         description: Data transaksi tidak valid
  */
-router.post("/", transaksiController.createTransaksi)
+router.post("/", auth, transaksiController.createTransaksi)
 
 /**
  * @openapi
@@ -51,11 +53,13 @@ router.post("/", transaksiController.createTransaksi)
  *   get:
  *     tags: [Transaksi]
  *     summary: Mendapatkan semua transaksi
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Data transaksi berhasil diambil
+ *         description: Berhasil mengambil data transaksi
  */
-router.get("/", transaksiController.getAllTransaksi)
+router.get("/", auth, transaksiController.getAllTransaksi)
 
 /**
  * @openapi
@@ -63,17 +67,21 @@ router.get("/", transaksiController.getAllTransaksi)
  *   get:
  *     tags: [Transaksi]
  *     summary: Mendapatkan detail transaksi berdasarkan ID
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
- *       - name: id
- *         in: path
+ *       - in: path
+ *         name: id
  *         required: true
  *         schema:
  *           type: integer
- *         example: 1
+ *           example: 1
  *     responses:
  *       200:
  *         description: Detail transaksi berhasil diambil
+ *       404:
+ *         description: Transaksi tidak ditemukan
  */
-router.get("/:id", transaksiController.getDetailTransaksi)
+router.get("/:id", auth, transaksiController.getDetailTransaksi)
 
 module.exports = router

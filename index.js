@@ -2,6 +2,7 @@ const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
 
+
 // Routes
 const authRoutes = require("./src/routes/authRoutes");
 const produkRoutes = require("./src/routes/produkRoutes");
@@ -10,6 +11,7 @@ const supplierRoutes = require("./src/routes/supplierRoutes");
 const pembelianRoutes = require("./src/routes/pembelianRoutes");
 const transaksiRoutes = require("./src/routes/transaksiRoutes");
 const batchRoutes = require("./src/routes/batchRoutes");
+const satuanRoutes = require("./src/routes/satuanRoute");
 
 // Swagger everyday
 const setupSwagger = require("./src/swagger");
@@ -54,6 +56,7 @@ app.use(`${API_PREFIX}/kategori`, kategoriRoutes);
 app.use(`${API_PREFIX}/supplier`, supplierRoutes);
 app.use(`${API_PREFIX}/pembelian`, pembelianRoutes);
 app.use(`${API_PREFIX}/transaksi`, transaksiRoutes);
+app.use(`${API_PREFIX}/satuan`, satuanRoutes);
 app.use(`${API_PREFIX}/batch`, batchRoutes);
 
 
@@ -71,5 +74,6 @@ app.listen(PORT, () => {
 ✅ Server Aktif!
 🚀 API URL     : http://localhost:${PORT}${API_PREFIX}
 📖 Swagger Docs: http://localhost:${PORT}/api-docs
+    online API :  https://stegosaur-reenact-algebra.ngrok-free.dev/api/v1
   `);
 });

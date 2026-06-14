@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
-const pembelianService = require("../controllers/services/pembelianService");
+// FIX: Memperbaiki path import service agar sesuai dengan struktur project
+const pembelianService = require("./services/pembelianService");
 
 exports.createPembelian = async (req, res) => {
     try {
@@ -19,20 +20,38 @@ exports.createPembelian = async (req, res) => {
 
 exports.getPembelian = async (req, res) => {
     try {
+        // --- KODE BARU DIMULAI DI SINI ---
         const { limit = 10, page = 1 } = req.query;
-        const skip = (page - 1) * limit;
+
+        const take = parseInt(limit);
+        const skip = (page - 1) * take;
+
+        const total = await prisma.pembelian.count();
+        const totalPages = Math.ceil(total / take);
 
         const data = await prisma.pembelian.findMany({
-            take: parseInt(limit),
-            skip: skip,
+            take,
+            skip,
             include: {
                 supplier: {
-                    select: { nama_supplier: true } 
+                    select: { nama_supplier: true }
                 },
-                pembelian_detail: {
+                pembeliandetail: {
                     include: {
                         produk: {
-                            select: { nama_produk: true, satuan: true }
+                            select: {
+                                nama_produk: true,
+                                satuan: true
+                            }
+                        },
+                        batchproduk: {
+                            select: {
+                                id_batch: true,
+                                no_batch: true,
+                                qty_sisa: true,
+                                expired_date: true,
+                                created_at: true
+                            }
                         }
                     }
                 }
@@ -40,10 +59,34 @@ exports.getPembelian = async (req, res) => {
             orderBy: { tanggal_faktur: "desc" }
         });
 
+        // MAPPING UNTUK KEBUTUHAN FRONTEND (Flatten data batch)
+        const formattedData = data.map(pembelian => {
+            const formattedDetail = pembelian.pembeliandetail.map(detail => {
+                const batchList = detail.batchproduk || [];
+                return {
+                    id_pembelian_detail: detail.id_pembelian_detail,
+                    qty: detail.qty,
+                    harga_beli: detail.harga_beli,
+                    no_batch: batch.id_batch ? `BATCH-${String(batch.id_batch).padStart(3, '0')}` : "-",
+                    expired_date: batch.expired_date ? batch.expired_date.toISOString().split('T')[0] : "-",
+                    tanggal_penerimaan: batch.created_at ? batch.created_at.toISOString().split('T')[0] : "-",
+                    gudang: "Gudang Utama",
+                    produk: detail.produk
+                };
+            });
+
+            return {
+                ...pembelian,
+                pembeliandetail: formattedDetail
+            };
+        });
+
         res.json({
             status: "success",
             page: parseInt(page),
-            data
+            total,
+            totalPages,
+            data: formattedData
         });
     } catch (error) {
         console.error("GET_PEMBELIAN_ERROR:", error);
@@ -63,19 +106,52 @@ exports.getPembelianById = async (req, res) => {
             where: { id_pembelian: parseInt(id) },
             include: {
                 supplier: true,
-                pembelian_detail: {
-                    include: { produk: true }
+                pembeliandetail: {
+                    include: {
+                        produk: {
+                            include: {
+                                satuan: true
+                            }
+                        },
+                        batchproduk: {
+                            select: {
+                                id_batch: true,
+                                expired_date: true,
+                                created_at: true
+                            }
+                        }
+                    }
                 }
             }
-        });
+        }
+        );
 
         if (!pembelian) {
             return res.status(404).json({ message: "Data pembelian tidak ditemukan" });
         }
 
-        res.json(pembelian);
+        // MAPPING UNTUK SINGLE ID
+        const formattedDetail = pembelian.pembeliandetail.map(detail => {
+            const batch = detail.batchproduk[0] || {};
+            return {
+                id_pembelian_detail: detail.id_pembelian_detail,
+                qty: detail.qty,
+                harga_beli: detail.harga_beli,
+                no_batch: batch.id_batch ? `BATCH-${String(batch.id_batch).padStart(3, '0')}` : "-",
+                expired_date: batch.expired_date ? batch.expired_date.toISOString().split('T')[0] : "-",
+                tanggal_penerimaan: batch.created_at ? batch.created_at.toISOString().split('T')[0] : "-",
+                gudang: "Gudang Utama",
+                produk: detail.produk
+            };
+        });
+
+        res.json({
+            ...pembelian,
+            pembeliandetail: formattedDetail
+        });
     } catch (error) {
         console.error("GET_BY_ID_ERROR:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 };
+

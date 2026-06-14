@@ -2,180 +2,100 @@ const express = require("express")
 const router = express.Router()
 const produk = require("../controllers/produkController")
 const auth = require("../middleware/authMiddleware")
-
 /**
  * @openapi
  * /api/v1/produk:
  *   get:
  *     tags: [Produk]
- *     summary: Mendapatkan semua produk obat
- *     security:
- *       - bearerAuth: []
+ *     summary: Ambil semua produk (pagination + search)
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           example: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *           example: para
  *     responses:
  *       200:
- *         description: Data produk berhasil diambil
+ *         description: Berhasil ambil produk
  */
 router.get("/", auth, produk.getProduk)
-
 /**
  * @openapi
- * /api/v1/produk/stok-menipis:
+ * /api/v1/produk/search:
  *   get:
  *     tags: [Produk]
- *     summary: Mendapatkan produk dengan stok menipis
- *     security:
- *       - bearerAuth: []
+ *     summary: Search produk berdasarkan nama / barcode
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: para
  *     responses:
  *       200:
- *         description: Data stok menipis berhasil diambil
+ *         description: Hasil pencarian produk
  */
-router.get("/stok-menipis", auth, produk.getStokMenipis)
-
+router.get("/search", auth, produk.searchProduk)
 /**
  * @openapi
  * /api/v1/produk/barcode/{barcode}:
  *   get:
  *     tags: [Produk]
- *     summary: Mendapatkan produk berdasarkan barcode
- *     security:
- *       - bearerAuth: []
+ *     summary: Ambil produk berdasarkan barcode
  *     parameters:
- *       - name: barcode
- *         in: path
+ *       - in: path
+ *         name: barcode
  *         required: true
  *         schema:
  *           type: string
- *         example: 8999990001234
+ *           example: 8999990001234
  *     responses:
  *       200:
  *         description: Produk ditemukan
+ *       404:
+ *         description: Produk tidak ditemukan
  */
 router.get("/barcode/:barcode", auth, produk.getProdukByBarcode)
-
+/**
+ * @openapi
+ * /api/v1/produk/stok-menipis:
+ *   get:
+ *     tags: [Produk]
+ *     summary: Ambil produk dengan stok di bawah minimum
+ *     responses:
+ *       200:
+ *         description: Data stok menipis
+ */
+router.get("/stok-menipis", auth, produk.getStokMenipis)
 /**
  * @openapi
  * /api/v1/produk/{id}:
  *   get:
  *     tags: [Produk]
- *     summary: Mendapatkan produk berdasarkan ID
- *     security:
- *       - bearerAuth: []
+ *     summary: Ambil produk berdasarkan ID
  *     parameters:
- *       - name: id
- *         in: path
+ *       - in: path
+ *         name: id
  *         required: true
  *         schema:
  *           type: integer
- *         example: 1
+ *           example: 1
  *     responses:
  *       200:
- *         description: Produk berhasil ditemukan
+ *         description: Produk ditemukan
+ *       404:
+ *         description: Produk tidak ditemukan
  */
-router.get('/:id', auth, produk.getProdukById)
-
-/**
- * @openapi
- * /api/v1/produk/{barcode}/stok:
- *   get:
- *     tags: [Produk]
- *     summary: Mendapatkan stok produk berdasarkan barcode
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: barcode
- *         in: path
- *         required: true
- *         schema:
- *           type: string
- *         example: 8999990001234
- *     responses:
- *       200:
- *         description: Stok produk berhasil diambil
- */
-router.get("/:barcode/stok", auth, produk.getStokProduk)
-
-/**
- * @openapi
- * /api/v1/produk:
- *   post:
- *     tags: [Produk]
- *     summary: Menambahkan produk obat baru
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               nama_produk:
- *                 type: string
- *                 example: Paracetamol
- *               barcode:
- *                 type: string
- *                 example: 8999990001234
- *               harga:
- *                 type: number
- *                 example: 5000
- *               stok:
- *                 type: integer
- *                 example: 100
- *               kategori_id:
- *                 type: integer
- *                 example: 1
- *     responses:
- *       201:
- *         description: Produk berhasil ditambahkan
- */
-router.post("/", auth, produk.createProduk)
-
-/**
- * @openapi
- * /api/v1/produk/{id}:
- *   put:
- *     tags: [Produk]
- *     summary: Mengupdate produk
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: id
- *         in: path
- *         required: true
- *         schema:
- *           type: integer
- *         example: 1
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       200:
- *         description: Produk berhasil diperbarui
- */
-router.put("/:id", auth, produk.updateProduk)
-
-/**
- * @openapi
- * /api/v1/produk/{id}:
- *   delete:
- *     tags: [Produk]
- *     summary: Menghapus produk
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: id
- *         in: path
- *         required: true
- *         schema:
- *           type: integer
- *         example: 1
- *     responses:
- *       200:
- *         description: Produk berhasil dihapus
- */
-router.delete("/:id", auth, produk.deleteProduk)
-
+router.get("/:id", auth, produk.getProdukById)
 module.exports = router

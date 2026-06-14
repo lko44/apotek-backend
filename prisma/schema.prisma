@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,187 +7,206 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  ADMIN
-  STAFF
-  KASIR
+model batchproduk {
+  id_batch            Int              @id @default(autoincrement())
+  id_produk           Int
+  id_pembelian        Int
+  expired_date        DateTime
+  qty_masuk           Int
+  qty_sisa            Int
+  created_at          DateTime         @default(now())
+  id_pembelian_detail Int?
+  no_batch            String?          @db.VarChar(100)
+  pembelian           pembelian        @relation(fields: [id_pembelian], references: [id_pembelian], map: "BatchProduk_id_pembelian_fkey")
+  produk              produk           @relation(fields: [id_produk], references: [id_produk], map: "BatchProduk_id_produk_fkey")
+  pembeliandetail     pembeliandetail? @relation(fields: [id_pembelian_detail], references: [id_pembelian_detail])
+  transaksibatch      transaksibatch[]
+
+  @@index([id_pembelian], map: "BatchProduk_id_pembelian_fkey")
+  @@index([id_produk], map: "BatchProduk_id_produk_fkey")
+  @@index([id_pembelian_detail], map: "batchproduk_id_pembelian_detail_fkey")
 }
 
-enum StatusPembelian {
-  LUNAS
-  BELUM_DIBAYAR
-  DIKEMBALIKAN
-}
-
-enum MetodeBayar {
-  TUNAI
-  QRIS
-  TRANSFER
-}
-
-enum TipeLog {
-  MASUK
-  KELUAR
-  KOREKSI
-}
-
-// =====================
-// MODELS
-// =====================
-
-model Kategori {
+model kategori {
   id_kategori   Int      @id @default(autoincrement())
-  nama_kategori String   @unique
+  nama_kategori String   @unique(map: "Kategori_nama_kategori_key")
+  created_at    DateTime @default(now())
   is_active     Boolean  @default(true)
-  created_at    DateTime @default(now())
-
-  produk Produk[]
+  produk        produk[]
 }
 
-model Produk {
-  id_produk    Int      @id @default(autoincrement())
-  nama_produk  String
-  barcode      String   @unique
-  id_kategori  Int
-  satuan       String
-  stok_minimum Int
-  harga_jual   Decimal
-  is_active    Boolean  @default(true)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+model logstok {
+  id_log     Int          @id @default(autoincrement())
+  id_produk  Int
+  tipe       logstok_tipe
+  qty        Int
+  sumber     String
+  created_at DateTime     @default(now())
+  produk     produk       @relation(fields: [id_produk], references: [id_produk], map: "LogStok_id_produk_fkey")
 
-  kategori         Kategori          @relation(fields: [id_kategori], references: [id_kategori])
-  pembelianDetails PembelianDetail[]
-  batchProduks     BatchProduk[]
-  transaksiDetails TransaksiDetail[]
-  logStoks         LogStok[]
+  @@index([id_produk], map: "LogStok_id_produk_fkey")
 }
 
-model User {
-  id_user       Int      @id @default(autoincrement())
-  nama          String
-  username      String   @unique
-  email         String   @unique
-  password_hash String
-  role          Role
-  is_active     Boolean  @default(true) // Changed to true as per your update
-  created_at    DateTime @default(now())
-
-  verifications VerificationCode[]
-  pembelian     Pembelian[]
-  transaksi     Transaksi[]
-}
-
-model Supplier {
-  id_supplier   Int      @id @default(autoincrement())
-  nama_supplier String
-  email         String?
-  telepon       String?
-  alamat        String?  @db.Text
-  created_at    DateTime @default(now())
-
-  pembelian Pembelian[]
-}
-
-model Pembelian {
-  id_pembelian        Int             @id @default(autoincrement())
-  no_faktur           String          @unique
+model pembelian {
+  id_pembelian        Int               @id @default(autoincrement())
+  no_faktur           String            @unique(map: "Pembelian_no_faktur_key")
   tanggal_faktur      DateTime
   tanggal_jatuh_tempo DateTime?
-  status              StatusPembelian
-  total               Decimal         @db.Decimal(15, 2)
+  status              pembelian_status
+  total               Decimal           @db.Decimal(15, 2)
   id_supplier         Int
   id_user             Int
-  created_at          DateTime        @default(now())
+  created_at          DateTime          @default(now())
+  batchproduk         batchproduk[]
+  supplier            supplier          @relation(fields: [id_supplier], references: [id_supplier], map: "Pembelian_id_supplier_fkey")
+  user                user              @relation(fields: [id_user], references: [id_user], map: "Pembelian_id_user_fkey")
+  pembeliandetail     pembeliandetail[]
 
-  supplier Supplier @relation(fields: [id_supplier], references: [id_supplier])
-  user     User     @relation(fields: [id_user], references: [id_user])
-
-  pembelian_detail PembelianDetail[]
-  batch_produk     BatchProduk[]
+  @@index([id_supplier], map: "Pembelian_id_supplier_fkey")
+  @@index([id_user], map: "Pembelian_id_user_fkey")
 }
 
-model PembelianDetail {
-  id_pembelian_detail Int     @id @default(autoincrement())
+model pembeliandetail {
+  id_pembelian_detail Int           @id @default(autoincrement())
   id_pembelian        Int
   id_produk           Int
   qty                 Int
-  harga_beli          Decimal @db.Decimal(15, 2)
+  harga_beli          Decimal       @db.Decimal(15, 2)
+  batchproduk         batchproduk[]
+  pembelian           pembelian     @relation(fields: [id_pembelian], references: [id_pembelian], map: "PembelianDetail_id_pembelian_fkey")
+  produk              produk        @relation(fields: [id_produk], references: [id_produk], map: "PembelianDetail_id_produk_fkey")
 
-  pembelian Pembelian @relation(fields: [id_pembelian], references: [id_pembelian])
-  produk    Produk    @relation(fields: [id_produk], references: [id_produk])
+  @@index([id_pembelian], map: "PembelianDetail_id_pembelian_fkey")
+  @@index([id_produk], map: "PembelianDetail_id_produk_fkey")
 }
 
-model BatchProduk {
-  id_batch     Int      @id @default(autoincrement())
-  id_produk    Int
-  id_pembelian Int
-  expired_date DateTime
-  qty_masuk    Int
-  qty_sisa     Int
-  created_at   DateTime @default(now())
+model produk {
+  id_produk       Int               @id @default(autoincrement())
+  nama_produk     String
+  barcode         String?
+  id_kategori     Int
+  stok_minimum    Int
+  harga_jual      Decimal
+  is_active       Boolean           @default(true)
+  created_at      DateTime          @default(now())
+  updated_at      DateTime
+  satuan_id       Int
+  batchproduk     batchproduk[]
+  logstok         logstok[]
+  pembeliandetail pembeliandetail[]
+  kategori        kategori          @relation(fields: [id_kategori], references: [id_kategori], map: "Produk_id_kategori_fkey")
+  satuan          satuan            @relation(fields: [satuan_id], references: [id], map: "fk_produk_satuan")
+  transaksidetail transaksidetail[]
 
-  produk    Produk    @relation(fields: [id_produk], references: [id_produk])
-  pembelian Pembelian @relation(fields: [id_pembelian], references: [id_pembelian])
-
-  transaksi_batch TransaksiBatch[]
+  @@unique([barcode, satuan_id], map: "barcode")
+  @@unique([barcode, satuan_id], map: "unique_barcode_satuan")
+  @@index([id_kategori], map: "Produk_id_kategori_fkey")
+  @@index([satuan_id], map: "fk_produk_satuan")
 }
 
-model Transaksi {
-  id_transaksi      Int         @id @default(autoincrement())
-  no_transaksi      String      @unique
-  tanggal_transaksi DateTime    @default(now())
-  metode_bayar      MetodeBayar
-  total             Decimal     @db.Decimal(15, 2)
+model satuan {
+  id     Int      @id @default(autoincrement())
+  kode   String   @unique(map: "kode") @db.VarChar(20)
+  nama   String   @db.VarChar(100)
+  produk produk[]
+}
+
+model supplier {
+  id_supplier   Int         @id @default(autoincrement())
+  nama_supplier String
+  email         String?
+  telepon       String?
+  alamat        String?     @db.Text
+  created_at    DateTime    @default(now())
+  pembelian     pembelian[]
+}
+
+model transaksi {
+  id_transaksi      Int                    @id @default(autoincrement())
+  no_transaksi      String                 @unique(map: "Transaksi_no_transaksi_key")
+  tanggal_transaksi DateTime               @default(now())
+  metode_bayar      transaksi_metode_bayar
+  total             Decimal                @db.Decimal(15, 2)
   id_user           Int
+  user              user                   @relation(fields: [id_user], references: [id_user], map: "Transaksi_id_user_fkey")
+  transaksidetail   transaksidetail[]
 
-  user             User              @relation(fields: [id_user], references: [id_user])
-  transaksi_detail TransaksiDetail[]
+  @@index([id_user], map: "Transaksi_id_user_fkey")
 }
 
-model TransaksiDetail {
-  id_transaksi_detail Int     @id @default(autoincrement())
-  id_transaksi        Int
-  id_produk           Int
-  qty                 Int
-  harga_jual          Decimal @db.Decimal(15, 2)
-  subtotal            Decimal @db.Decimal(15, 2)
-
-  transaksi Transaksi @relation(fields: [id_transaksi], references: [id_transaksi])
-  produk    Produk    @relation(fields: [id_produk], references: [id_produk])
-
-  transaksi_batch TransaksiBatch[]
-}
-
-model TransaksiBatch {
-  id_transaksi_batch  Int @id @default(autoincrement())
+model transaksibatch {
+  id_transaksi_batch  Int             @id @default(autoincrement())
   id_transaksi_detail Int
   id_batch            Int
   qty_keluar          Int
+  batchproduk         batchproduk     @relation(fields: [id_batch], references: [id_batch], map: "TransaksiBatch_id_batch_fkey")
+  transaksidetail     transaksidetail @relation(fields: [id_transaksi_detail], references: [id_transaksi_detail], map: "TransaksiBatch_id_transaksi_detail_fkey")
 
-  transaksi_detail TransaksiDetail @relation(fields: [id_transaksi_detail], references: [id_transaksi_detail])
-  batch_produk     BatchProduk     @relation(fields: [id_batch], references: [id_batch])
+  @@index([id_batch], map: "TransaksiBatch_id_batch_fkey")
+  @@index([id_transaksi_detail], map: "TransaksiBatch_id_transaksi_detail_fkey")
 }
 
-model LogStok {
-  id_log     Int      @id @default(autoincrement())
-  id_produk  Int
-  tipe       TipeLog
-  qty        Int
-  sumber     String // Bisa "PEMBELIAN", "TRANSAKSI", atau "MANUAL"
-  created_at DateTime @default(now())
+model transaksidetail {
+  id_transaksi_detail Int              @id @default(autoincrement())
+  id_transaksi        Int
+  id_produk           Int
+  qty                 Int
+  harga_jual          Decimal          @db.Decimal(15, 2)
+  subtotal            Decimal          @db.Decimal(15, 2)
+  transaksibatch      transaksibatch[]
+  produk              produk           @relation(fields: [id_produk], references: [id_produk], map: "TransaksiDetail_id_produk_fkey")
+  transaksi           transaksi        @relation(fields: [id_transaksi], references: [id_transaksi], map: "TransaksiDetail_id_transaksi_fkey")
 
-  produk Produk @relation(fields: [id_produk], references: [id_produk])
+  @@index([id_produk], map: "TransaksiDetail_id_produk_fkey")
+  @@index([id_transaksi], map: "TransaksiDetail_id_transaksi_fkey")
 }
 
-model VerificationCode {
+model user {
+  id_user          Int                @id @default(autoincrement())
+  nama             String
+  password_hash    String
+  role             user_role
+  is_active        Boolean            @default(true)
+  created_at       DateTime           @default(now())
+  email            String             @unique(map: "User_email_key")
+  username         String             @unique(map: "User_username_key")
+  pembelian        pembelian[]
+  transaksi        transaksi[]
+  verificationcode verificationcode[]
+}
+
+model verificationcode {
   id_code    Int      @id @default(autoincrement())
   email      String
   code       String
   expires_at DateTime
   created_at DateTime @default(now())
+  id_user    Int
+  user       user     @relation(fields: [id_user], references: [id_user], map: "VerificationCode_id_user_fkey")
 
-  id_user Int
+  @@index([id_user], map: "VerificationCode_id_user_fkey")
+}
 
-  user User @relation(fields: [id_user], references: [id_user])
+enum logstok_tipe {
+  MASUK
+  KELUAR
+  KOREKSI
+}
+
+enum transaksi_metode_bayar {
+  TUNAI
+  QRIS
+  TRANSFER
+}
+
+enum user_role {
+  ADMIN
+  STAFF
+  KASIR
+}
+
+enum pembelian_status {
+  LUNAS
+  BELUM_DIBAYAR
+  DIKEMBALIKAN
 }

@@ -3,26 +3,35 @@ const prisma = require("../lib/prisma")
 exports.createTransaksi = async (req, res) => {
     try {
         const { metode_bayar, items } = req.body;
-        
-        const id_user = req.user.id; 
+        const id_user = req.user.id;
 
         if (!items || items.length === 0) {
             return res.status(400).json({ message: "Keranjang belanja kosong!" });
         }
 
+        // Quick verification: block invalid enums before opening a heavy database transaction
+        const validMetode = ["TUNAI", "QRIS", "TRANSFER"];
+        if (!validMetode.includes(metode_bayar)) {
+            return res.status(400).json({ 
+                message: `Metode bayar '${metode_bayar}' tidak valid. Gunakan: TUNAI, QRIS, atau TRANSFER.` 
+            });
+        }
+
         const result = await prisma.$transaction(async (tx) => {
+            // 1. Create base transaction entry
             const transaksi = await tx.transaksi.create({
                 data: {
                     no_transaksi: "TRX-" + Date.now(),
-                    metode_bayar,
+                    metode_bayar, // Safely guaranteed to match uppercase TUNAI/QRIS/TRANSFER now
                     total: 0,
-                    user: { connect: { id_user: parseInt(id_user) } }
+                    id_user: parseInt(id_user) // Directly mapping the foreign key scalar is safer & faster
                 }
             });
 
             let grandTotal = 0;
 
             for (const item of items) {
+                // 2. Find product by barcode
                 const produk = await tx.produk.findUnique({
                     where: { barcode: item.barcode }
                 });
@@ -32,7 +41,8 @@ exports.createTransaksi = async (req, res) => {
 
                 let sisaQtyYangMauDibeli = item.qty;
 
-                const batches = await tx.batchProduk.findMany({
+                // 3. Fetch batches sorted by oldest expiry date (FEFO)
+                const batches = await tx.batchproduk.findMany({
                     where: {
                         id_produk: produk.id_produk,
                         qty_sisa: { gt: 0 }
@@ -45,29 +55,33 @@ exports.createTransaksi = async (req, res) => {
                     throw new Error(`Stok ${produk.nama_produk} tidak cukup. Tersisa: ${totalStokTersedia}`);
                 }
 
-                const detail = await tx.transaksiDetail.create({
+                // 4. Create base transaction detail row
+                const detail = await tx.transaksidetail.create({
                     data: {
                         id_transaksi: transaksi.id_transaksi,
                         id_produk: produk.id_produk,
                         qty: item.qty,
                         harga_jual: produk.harga_jual,
-                        subtotal: 0 
+                        subtotal: 0
                     }
                 });
 
                 let subtotalItem = 0;
 
+                // 5. Deduct from available inventory batches
                 for (const batch of batches) {
                     if (sisaQtyYangMauDibeli <= 0) break;
-                    
+
                     const ambilDariBatchIni = Math.min(batch.qty_sisa, sisaQtyYangMauDibeli);
 
-                    await tx.batchProduk.update({
+                    // Update batch stock balance
+                    await tx.batchproduk.update({
                         where: { id_batch: batch.id_batch },
                         data: { qty_sisa: { decrement: ambilDariBatchIni } }
                     });
 
-                    await tx.transaksiBatch.create({
+                    // Log which batch this transaction pulled from
+                    await tx.transaksibatch.create({
                         data: {
                             id_transaksi_detail: detail.id_transaksi_detail,
                             id_batch: batch.id_batch,
@@ -79,12 +93,14 @@ exports.createTransaksi = async (req, res) => {
                     subtotalItem += ambilDariBatchIni * Number(produk.harga_jual);
                 }
 
-                await tx.transaksiDetail.update({
+                // 6. Update the subtotal for this item detail row
+                await tx.transaksidetail.update({
                     where: { id_transaksi_detail: detail.id_transaksi_detail },
                     data: { subtotal: subtotalItem }
                 });
 
-                await tx.logStok.create({
+                // 7. Write to general stock movement log
+                await tx.logstok.create({
                     data: {
                         id_produk: produk.id_produk,
                         tipe: "KELUAR",
@@ -96,17 +112,20 @@ exports.createTransaksi = async (req, res) => {
                 grandTotal += subtotalItem;
             }
 
+            // 8. Update grand total on the parent transaction record
             const transaksiFinal = await tx.transaksi.update({
                 where: { id_transaksi: transaksi.id_transaksi },
                 data: { total: grandTotal },
                 include: {
-                    transaksi_detail: {
-                        include: { produk: { select: { nama_produk: true } } }
+                    transaksidetail: {
+                        include: { 
+                            produk: { select: { nama_produk: true } } 
+                        }
                     }
                 }
             });
 
-            return transaksiFinal; 
+            return transaksiFinal;
         });
 
         res.status(201).json({
@@ -160,7 +179,7 @@ exports.getDetailTransaksi = async (req, res) => {
                     }
                 },
                 // GANTI INI: dari detail_transaksi menjadi transaksi_detail
-                transaksi_detail: {
+                transaksidetail: {
                     include: {
                         produk: {
                             select: {

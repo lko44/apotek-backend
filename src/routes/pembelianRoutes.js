@@ -1,13 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const pembelianController = require('../controllers/pembelianController');
-const auth = require("../middleware/authMiddleware")
+const auth = require("../middleware/authMiddleware");
 
 /**
  * @openapi
  * /api/v1/pembelian:
  *   post:
- *     tags: [Pembelian]
+ *     tags:
+ *       - Pembelian
  *     summary: Membuat data pembelian obat dari supplier
  *     security:
  *       - bearerAuth: []
@@ -31,27 +32,44 @@ const auth = require("../middleware/authMiddleware")
  *       201:
  *         description: Pembelian berhasil dibuat
  */
-router.post("/", auth, pembelianController.createPembelian)
+router.post("/", auth, pembelianController.createPembelian);
 
 /**
  * @openapi
  * /api/v1/pembelian:
  *   get:
- *     tags: [Pembelian]
- *     summary: Mendapatkan semua data pembelian
+ *     tags:
+ *       - Pembelian
+ *     summary: Mendapatkan semua data pembelian dengan pagination
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - name: page
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Halaman data yang ingin diambil
+ *       - name: limit
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Jumlah data per halaman
  *     responses:
  *       200:
  *         description: Data pembelian berhasil diambil
  */
-router.get("/", auth, pembelianController.getPembelian)
+router.get("/", auth, pembelianController.getPembelian);
 
 /**
  * @openapi
  * /api/v1/pembelian/{id}:
  *   get:
- *     tags: [Pembelian]
+ *     tags:
+ *       - Pembelian
  *     summary: Mendapatkan detail pembelian berdasarkan ID
  *     security:
  *       - bearerAuth: []
@@ -66,6 +84,6 @@ router.get("/", auth, pembelianController.getPembelian)
  *       200:
  *         description: Detail pembelian berhasil diambil
  */
-router.get("/:id", auth, pembelianController.getPembelianById)
+router.get("/:id", auth, pembelianController.getPembelianById);
 
 module.exports = router;

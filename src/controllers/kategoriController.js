@@ -2,22 +2,45 @@ const prisma = require("../lib/prisma");
 
 exports.getKategori = async (req, res) => {
   try {
-    const data = await prisma.kategori.findMany({
-      where: { is_active: true },
-      orderBy: { nama_kategori: "asc" },
-      include: {
-        _count: {
-          select: { produk: true }
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      prisma.kategori.findMany({
+        where: { is_active: true },
+        orderBy: { id_kategori: "asc" },
+        skip,
+        take: limit,
+        select: {
+          id_kategori: true,
+          nama_kategori: true,
+          _count: {
+            select: { produk: true }
+          }
         }
-      }
-    });
+      }),
+      prisma.kategori.count({
+        where: { is_active: true }
+      })
+    ]);
 
     res.json({
       message: "Berhasil ambil kategori",
-      data
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
     });
   } catch (error) {
-    res.status(500).json({ error: "Gagal ambil data kategori" });
+    console.error(error); 
+    res.status(500).json({
+      error: "Gagal ambil data kategori",
+      detail: error.message
+    });
   }
 };
 
