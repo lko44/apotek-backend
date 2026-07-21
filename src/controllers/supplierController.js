@@ -39,33 +39,45 @@ exports.getSupplierById = async (req, res) => {
 // CREATE supplier
 exports.createSupplier = async (req, res) => {
   try {
-    if (req.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: "Akses ditolak! Hanya Admin yang diizinkan." });
+    if (req.user.role !== "ADMIN") {
+      return res.status(403).json({
+        message: "Akses ditolak! Hanya Admin yang diizinkan."
+      });
     }
 
     const { nama_supplier, email, telepon, alamat } = req.body;
 
     if (!nama_supplier || !email) {
-      return res.status(400).json({ message: "Nama dan Email wajib diisi!" });
-    }
-
-    // Cek email duplikat biar ga kena P2002 constraint error dari Prisma
-    const existing = await prisma.supplier.findUnique({ where: { email } });
-    if (existing) {
-      return res.status(400).json({ message: "Email supplier sudah terdaftar" });
+      return res.status(400).json({
+        message: "Nama dan Email wajib diisi!"
+      });
     }
 
     const supplier = await prisma.supplier.create({
-      data: { nama_supplier, email, telepon, alamat }
+      data: {
+        nama_supplier,
+        email,
+        telepon,
+        alamat
+      }
     });
 
-    res.status(201).json(supplier);
+    return res.status(201).json(supplier);
+
   } catch (error) {
-    console.error("CREATE_SUPPLIER_ERROR:", error);
-    res.status(500).json({ error: "Gagal membuat supplier" });
+    console.error(error);
+
+    if (error.code === "P2002") {
+      return res.status(400).json({
+        message: "Email supplier sudah terdaftar."
+      });
+    }
+
+    return res.status(500).json({
+      message: "Gagal membuat supplier."
+    });
   }
 };
-
 // UPDATE supplier
 exports.updateSupplier = async (req, res) => {
   try {

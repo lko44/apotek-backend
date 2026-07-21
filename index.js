@@ -12,6 +12,7 @@ const pembelianRoutes = require("./src/routes/pembelianRoutes");
 const transaksiRoutes = require("./src/routes/transaksiRoutes");
 const batchRoutes = require("./src/routes/batchRoutes");
 const satuanRoutes = require("./src/routes/satuanRoute");
+const laporanRourtes = require("./src/routes/laporanRoutes");
 
 // Swagger everyday
 const setupSwagger = require("./src/swagger");
@@ -58,6 +59,7 @@ app.use(`${API_PREFIX}/pembelian`, pembelianRoutes);
 app.use(`${API_PREFIX}/transaksi`, transaksiRoutes);
 app.use(`${API_PREFIX}/satuan`, satuanRoutes);
 app.use(`${API_PREFIX}/batch`, batchRoutes);
+app.use(`${API_PREFIX}/laporan`, laporanRourtes);
 
 
 // =====================

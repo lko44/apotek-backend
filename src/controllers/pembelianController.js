@@ -62,14 +62,18 @@ exports.getPembelian = async (req, res) => {
         // MAPPING UNTUK KEBUTUHAN FRONTEND (Flatten data batch)
         const formattedData = data.map(pembelian => {
             const formattedDetail = pembelian.pembeliandetail.map(detail => {
-                const batchList = detail.batchproduk || [];
+                const batch = detail.batchproduk?.[0] || {};
                 return {
                     id_pembelian_detail: detail.id_pembelian_detail,
                     qty: detail.qty,
                     harga_beli: detail.harga_beli,
-                    no_batch: batch.id_batch ? `BATCH-${String(batch.id_batch).padStart(3, '0')}` : "-",
-                    expired_date: batch.expired_date ? batch.expired_date.toISOString().split('T')[0] : "-",
-                    tanggal_penerimaan: batch.created_at ? batch.created_at.toISOString().split('T')[0] : "-",
+                    no_batch: batch.no_batch || "-",
+                    expired_date: batch.expired_date
+                        ? batch.expired_date.toISOString().split("T")[0]
+                        : "-",
+                    tanggal_penerimaan: batch.created_at
+                        ? batch.created_at.toISOString().split("T")[0]
+                        : "-",
                     gudang: "Gudang Utama",
                     produk: detail.produk
                 };

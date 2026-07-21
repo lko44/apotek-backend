@@ -12,8 +12,8 @@ exports.createTransaksi = async (req, res) => {
         // Quick verification: block invalid enums before opening a heavy database transaction
         const validMetode = ["TUNAI", "QRIS", "TRANSFER"];
         if (!validMetode.includes(metode_bayar)) {
-            return res.status(400).json({ 
-                message: `Metode bayar '${metode_bayar}' tidak valid. Gunakan: TUNAI, QRIS, atau TRANSFER.` 
+            return res.status(400).json({
+                message: `Metode bayar '${metode_bayar}' tidak valid. Gunakan: TUNAI, QRIS, atau TRANSFER.`
             });
         }
 
@@ -32,8 +32,10 @@ exports.createTransaksi = async (req, res) => {
 
             for (const item of items) {
                 // 2. Find product by barcode
-                const produk = await tx.produk.findUnique({
-                    where: { barcode: item.barcode }
+                const produk = await tx.produk.findFirst({
+                    where: {
+                        barcode: item.barcode
+                    }
                 });
 
                 if (!produk) throw new Error(`Produk dengan barcode ${item.barcode} tidak ditemukan`);
@@ -118,8 +120,8 @@ exports.createTransaksi = async (req, res) => {
                 data: { total: grandTotal },
                 include: {
                     transaksidetail: {
-                        include: { 
-                            produk: { select: { nama_produk: true } } 
+                        include: {
+                            produk: { select: { nama_produk: true } }
                         }
                     }
                 }

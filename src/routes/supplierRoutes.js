@@ -15,6 +15,30 @@ const auth = require("../middleware/authMiddleware")
  *     responses:
  *       200:
  *         description: Data supplier berhasil diambil
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id_supplier:
+ *                     type: integer
+ *                     example: 1
+ *                   nama_supplier:
+ *                     type: string
+ *                     example: PT Kimia Farma
+ *                   email:
+ *                     type: string
+ *                     example: supplier@email.com
+ *                   telepon:
+ *                     type: string
+ *                     example: "08123456789"
+ *                   alamat:
+ *                     type: string
+ *                     example: Jakarta
+ *       500:
+ *         description: Gagal mengambil data supplier
  */
 router.get("/", auth, supplier.getSupplier)
 
@@ -36,6 +60,12 @@ router.get("/", auth, supplier.getSupplier)
  *     responses:
  *       200:
  *         description: Data supplier berhasil ditemukan
+ *       400:
+ *         description: ID bukan angka
+ *       404:
+ *         description: Supplier tidak ditemukan
+ *       500:
+ *         description: Internal Server Error
  */
 router.get("/:id", auth, supplier.getSupplierById)
 
@@ -44,7 +74,7 @@ router.get("/:id", auth, supplier.getSupplierById)
  * /api/v1/supplier:
  *   post:
  *     tags: [Supplier]
- *     summary: Menambahkan supplier baru
+ *     summary: Menambahkan supplier baru (Admin)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -53,19 +83,32 @@ router.get("/:id", auth, supplier.getSupplierById)
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - nama_supplier
+ *               - email
  *             properties:
  *               nama_supplier:
  *                 type: string
  *                 example: PT Kimia Farma
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: kimiafarma@gmail.com
+ *               telepon:
+ *                 type: string
+ *                 example: "08123456789"
  *               alamat:
  *                 type: string
  *                 example: Jakarta
- *               telepon:
- *                 type: string
- *                 example: 08123456789
  *     responses:
  *       201:
  *         description: Supplier berhasil ditambahkan
+ *       400:
+ *         description: Nama/email kosong atau email sudah terdaftar
+ *       403:
+ *         description: Hanya Admin yang dapat membuat supplier
+ *       500:
+ *         description: Gagal membuat supplier
  */
 router.post("/", auth, supplier.createSupplier)
 
@@ -94,15 +137,21 @@ router.post("/", auth, supplier.createSupplier)
  *               nama_supplier:
  *                 type: string
  *                 example: PT Kalbe Farma
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: kalbe@gmail.com
+ *               telepon:
+ *                 type: string
+ *                 example: "08123456789"
  *               alamat:
  *                 type: string
  *                 example: Bandung
- *               telepon:
- *                 type: string
- *                 example: 08123456789
  *     responses:
  *       200:
  *         description: Supplier berhasil diperbarui
+ *       500:
+ *         description: Gagal update. ID tidak ditemukan atau email duplikat
  */
 router.put("/:id", auth, supplier.updateSupplier)
 
@@ -124,6 +173,10 @@ router.put("/:id", auth, supplier.updateSupplier)
  *     responses:
  *       200:
  *         description: Supplier berhasil dihapus
+ *       400:
+ *         description: Supplier memiliki riwayat transaksi/pembelian
+ *       500:
+ *         description: Terjadi kesalahan server
  */
 router.delete("/:id", auth, supplier.deleteSupplier)
 

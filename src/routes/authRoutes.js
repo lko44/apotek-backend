@@ -167,4 +167,61 @@ router.get(
   auth.getAllUsers
 );
 
+/**
+ * @openapi
+ * /api/v1/auth/users/{id}/status:
+ *   patch:
+ *     tags: [Auth]
+ *     summary: Aktifkan / Nonaktifkan user
+ *     description: |
+ *       Mengubah status akun user.
+ *       - Jika user sedang aktif (`is_active = true`), maka akan dinonaktifkan.
+ *       - Jika user sedang nonaktif (`is_active = false`), maka akan diaktifkan kembali.
+ *       ADMIN tidak dapat mengubah status akunnya sendiri.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 5
+ *     responses:
+ *       200:
+ *         description: Status user berhasil diubah
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: User Budi berhasil dinonaktifkan.
+ *                 is_active:
+ *                   type: boolean
+ *                   example: false
+ *       400:
+ *         description: Tidak dapat mengubah status akun sendiri
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: SON😭.
+ *       404:
+ *         description: User tidak ditemukan
+ *       401:
+ *         description: Token tidak valid
+ *       403:
+ *         description: Hanya ADMIN yang dapat mengubah status user
+ */
+router.patch(
+    "/users/:id/status",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    auth.toggleUserStatus
+);
 module.exports = router;

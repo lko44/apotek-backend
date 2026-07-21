@@ -112,12 +112,13 @@ model satuan {
 }
 
 model supplier {
-  id_supplier   Int         @id @default(autoincrement())
+  id_supplier   Int      @id @default(autoincrement())
   nama_supplier String
-  email         String?
+  email         String? @unique
   telepon       String?
-  alamat        String?     @db.Text
-  created_at    DateTime    @default(now())
+  alamat        String? @db.Text
+  created_at    DateTime @default(now())
+
   pembelian     pembelian[]
 }
 

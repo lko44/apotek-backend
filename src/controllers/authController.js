@@ -29,6 +29,11 @@ exports.login = async (req, res) => {
                 message: "Username atau password salah"
             });
         }
+        if (!user.is_active) {
+            return res.status(403).json({
+                message: "Akun telah dinonaktifkan SOWWY~."
+            });
+        }
 
         const token = jwt.sign(
             { id: user.id_user, role: user.role },
@@ -146,6 +151,67 @@ exports.getAllUsers = async (req, res) => {
 
     } catch (error) {
         console.error("GET ALL USERS ERROR:", error);
+
+        res.status(500).json({
+            message: "Internal server error"
+        });
+    }
+};
+
+exports.toggleUserStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const targetId = parseInt(id);
+        const currentUserId = req.user.id;
+
+        if (isNaN(targetId)) {
+            return res.status(400).json({
+                message: "ID user tidak valid."
+            });
+        }
+
+        // Jangan boleh mengubah status akun sendiri
+        if (targetId === currentUserId) {
+            return res.status(400).json({
+                message: "SON😭 Kamu tidak bisa mengubah status akun sendiri."
+            });
+        }
+
+        // Cari user
+        const existingUser = await prisma.user.findUnique({
+            where: {
+                id_user: targetId
+            }
+        });
+
+        if (!existingUser) {
+            return res.status(404).json({
+                message: "User tidak ditemukan."
+            });
+        }
+
+        // Toggle status
+        const updatedUser = await prisma.user.update({
+            where: {
+                id_user: targetId
+            },
+            data: {
+                is_active: !existingUser.is_active
+            }
+        });
+
+        res.json({
+            message: `User ${updatedUser.nama} berhasil ${updatedUser.is_active ? "diaktifkan" : "dinonaktifkan"}.`,
+            data: {
+                id_user: updatedUser.id_user,
+                nama: updatedUser.nama,
+                is_active: updatedUser.is_active
+            }
+        });
+
+    } catch (error) {
+        console.error("TOGGLE USER STATUS ERROR:", error);
 
         res.status(500).json({
             message: "Internal server error"

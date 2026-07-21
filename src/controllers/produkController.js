@@ -11,12 +11,16 @@ exports.getProduk = async (req, res) => {
         if (isNaN(page) || page < 1) page = 1;
         if (isNaN(limit) || limit < 1) limit = 10;
 
+        // Bikin filter pencarian yang reusable dan aman
+        const whereClause = {
+            is_active: true, // 🌟 HANYA TAMPILKAN PRODUK YANG AKTIF
+            nama_produk: {
+                contains: search
+            }
+        };
+
         const data = await prisma.produk.findMany({
-            where: {
-                nama_produk: {
-                    contains: search
-                }
-            },
+            where: whereClause,
             include: {
                 kategori: true,
                 satuan: true,
@@ -25,10 +29,16 @@ exports.getProduk = async (req, res) => {
                         id_batch: true,
                         no_batch: true,
                         qty_sisa: true,
-                        expired_date: true
+                        expired_date: true,
+                        // 🌟 TAMBAHKAN INI: Ambil no_faktur dari relasi pembelian
+                        pembelian: {
+                            select: {
+                                no_faktur: true
+                            }
+                        }
                     },
                     where: {
-                        qty_sisa: { gt: 0 }
+                        qty_sisa: { gt: 0 } // Hanya ambil batch yang masih ada isinya
                     }
                 }
             },
@@ -39,7 +49,7 @@ exports.getProduk = async (req, res) => {
 
         const produkIds = data.map(p => p.id_produk);
 
-        // 🛡️ ERROR HANDLER: Cek jika data kosong, langsung kembalikan response agar tidak query agregasi sia-sia
+        // 🛡️ ERROR HANDLER: Cek jika data kosong, langsung kembalikan response
         if (produkIds.length === 0) {
             return res.json({
                 message: "Berhasil ambil produk (Data kosong)",
@@ -51,10 +61,12 @@ exports.getProduk = async (req, res) => {
             });
         }
 
+        // Hitung stok gabungan hanya untuk produk yang ada di page saat ini
         const stokAgg = await prisma.batchproduk.groupBy({
             by: ["id_produk"],
             where: {
-                id_produk: { in: produkIds }
+                id_produk: { in: produkIds },
+                qty_sisa: { gt: 0 }
             },
             _sum: {
                 qty_sisa: true
@@ -65,17 +77,18 @@ exports.getProduk = async (req, res) => {
             stokAgg.map(s => [s.id_produk, s._sum.qty_sisa || 0])
         );
 
-        const enriched = data.map(p => ({
-            ...p,
-            stok: stokMap.get(p.id_produk) || 0
-        }));
+        const enriched = data.map(p => {
+            // Mengonversi objek Prisma ke plain object agar aman di-spread
+            const plainProduk = JSON.parse(JSON.stringify(p));
+
+            return {
+                ...plainProduk,
+                stok: stokMap.get(p.id_produk) || 0
+            };
+        });
 
         const total = await prisma.produk.count({
-            where: {
-                nama_produk: {
-                    contains: search
-                }
-            }
+            where: whereClause
         });
 
         res.json({
@@ -121,7 +134,13 @@ exports.getProdukById = async (req, res) => {
                         id_batch: true,
                         no_batch: true,
                         qty_sisa: true,
-                        expired_date: true
+                        expired_date: true,
+                        // 🌟 TAMBAHKAN INI: Ambil no_faktur dari relasi pembelian
+                        pembelian: {
+                            select: {
+                                no_faktur: true
+                            }
+                        }
                     },
                     where: {
                         qty_sisa: { gt: 0 }
@@ -129,12 +148,19 @@ exports.getProdukById = async (req, res) => {
                 }
             },
         });
-        
+
         if (!produk) {
             return res.status(404).json({ message: "Produk tidak ditemukan" });
         }
 
-        res.json(produk);
+        // Hitung stok kalkulasi total untuk konsistensi detail
+        const plainProduk = JSON.parse(JSON.stringify(produk));
+        const totalStok = plainProduk.batchproduk.reduce((sum, batch) => sum + batch.qty_sisa, 0);
+
+        res.json({
+            ...plainProduk,
+            stok: totalStok
+        });
 
     } catch (error) {
         res.status(500).json({
@@ -165,7 +191,7 @@ exports.createProduk = async (req, res) => {
         const parsedKategori = parseInt(id_kategori);
         const parsedSatuan = parseInt(satuan_id);
         const parsedHarga = parseFloat(harga_jual);
-        
+
         if (isNaN(parsedKategori) || isNaN(parsedSatuan)) {
             return res.status(400).json({ message: "ID Kategori dan Satuan ID harus berupa angka" });
         }
@@ -250,7 +276,7 @@ exports.updateProduk = async (req, res) => {
             return res.status(409).json({ error: "Gagal update: Barcode bentrok dengan produk lain." });
         }
 
-        res.status(500).json({ 
+        res.status(500).json({
             error: "Terjadi kesalahan pada server saat update produk.",
             message: error.message
         });
@@ -426,9 +452,9 @@ exports.getStokMenipis = async (req, res) => {
 
         res.json(result);
     } catch (error) {
-        res.status(500).json({ 
+        res.status(500).json({
             error: "Gagal cek stok menipis",
-            message: error.message 
+            message: error.message
         });
     }
 };
@@ -492,6 +518,63 @@ exports.searchProduk = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             message: "Gagal search produk",
+            error: error.message
+        });
+    }
+};
+
+exports.getProdukTersedia = async (req, res) => {
+    try {
+        const data = await prisma.produk.findMany({
+            where: {
+                is_active: true,
+                batchproduk: {
+                    some: {
+                        qty_sisa: {
+                            gt: 0
+                        }
+                    }
+                }
+            },
+            include: {
+                kategori: true,
+                satuan: true,
+                batchproduk: {
+                    where: {
+                        qty_sisa: {
+                            gt: 0
+                        }
+                    },
+                    select: {
+                        id_batch: true,
+                        no_batch: true,
+                        qty_sisa: true,
+                        expired_date: true
+                    }
+                }
+            },
+            orderBy: {
+                nama_produk: "asc"
+            }
+        });
+
+        const enriched = data.map(produk => ({
+            ...produk,
+            stok: produk.batchproduk.reduce(
+                (total, batch) => total + batch.qty_sisa,
+                0
+            )
+        }));
+
+        res.json({
+            message: "Berhasil mengambil produk yang tersedia",
+            total: enriched.length,
+            data: enriched
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Gagal mengambil produk tersedia",
             error: error.message
         });
     }
