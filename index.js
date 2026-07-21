@@ -24,7 +24,11 @@ const API_PREFIX = "/api/v1";
 // MIDDLEWARE
 // =====================
 app.use(cors());
-app.use(helmet()); // <-- Aktifkan Helmet di sini
+app.use(
+  helmet({
+    contentSecurityPolicy: false
+  })
+);
 app.use(express.json());
 
 // =====================
