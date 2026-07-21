@@ -2,7 +2,6 @@ const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
 
-
 // Routes
 const authRoutes = require("./src/routes/authRoutes");
 const produkRoutes = require("./src/routes/produkRoutes");
@@ -14,20 +13,19 @@ const batchRoutes = require("./src/routes/batchRoutes");
 const satuanRoutes = require("./src/routes/satuanRoute");
 const laporanRourtes = require("./src/routes/laporanRoutes");
 
-// Swagger everyday
+// Swagger
 const setupSwagger = require("./src/swagger");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const API_PREFIX = "/api/v1";
 
-
 // =====================
 // MIDDLEWARE
 // =====================
 app.use(cors());
+app.use(helmet()); // <-- Aktifkan Helmet di sini
 app.use(express.json());
-
 
 // =====================
 // ROOT ENDPOINT
@@ -47,7 +45,6 @@ app.get(`${API_PREFIX}`, (req, res) => {
   });
 });
 
-
 // =====================
 // ROUTES
 // =====================
@@ -61,21 +58,20 @@ app.use(`${API_PREFIX}/satuan`, satuanRoutes);
 app.use(`${API_PREFIX}/batch`, batchRoutes);
 app.use(`${API_PREFIX}/laporan`, laporanRourtes);
 
-
 // =====================
 // SWAGGER SETUP
 // =====================
 setupSwagger(app);
 
-
 // =====================
 // SERVER
 // =====================
-app.listen(PORT, () => {
+// Tambahkan '0.0.0.0' agar server listen ke semua interface jaringan VPS
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`
 ✅ Server Aktif!
-🚀 API URL     : http://localhost:${PORT}${API_PREFIX}
-📖 Swagger Docs: http://localhost:${PORT}/api-docs
-    online API :  https://stegosaur-reenact-algebra.ngrok-free.dev/api/v1
+🚀 Running on Port: ${PORT}
+📖 Base API Endpoint: ${API_PREFIX}
+📖 Swagger Docs: /api-docs
   `);
 });
