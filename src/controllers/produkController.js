@@ -13,7 +13,6 @@ exports.getProduk = async (req, res) => {
 
         // Bikin filter pencarian yang reusable dan aman
         const whereClause = {
-            is_active: true, // 🌟 HANYA TAMPILKAN PRODUK YANG AKTIF
             nama_produk: {
                 contains: search
             }

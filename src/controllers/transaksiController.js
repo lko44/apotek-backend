@@ -22,9 +22,10 @@ exports.createTransaksi = async (req, res) => {
             const transaksi = await tx.transaksi.create({
                 data: {
                     no_transaksi: "TRX-" + Date.now(),
-                    metode_bayar, // Safely guaranteed to match uppercase TUNAI/QRIS/TRANSFER now
+                    metode_bayar,
+                    status: "SELESAI",
                     total: 0,
-                    id_user: parseInt(id_user) // Directly mapping the foreign key scalar is safer & faster
+                    id_user: parseInt(id_user)
                 }
             });
 
@@ -210,3 +211,102 @@ exports.getDetailTransaksi = async (req, res) => {
         })
     }
 }
+
+exports.batalkanTransaksi = async (req, res) => {
+    try {
+        // Hanya ADMIN yang boleh membatalkan transaksi
+        if (req.user.role !== "ADMIN") {
+            return res.status(403).json({
+                message: "Akses ditolak! Hanya Admin yang dapat membatalkan transaksi."
+            });
+        }
+
+        const { id } = req.params;
+
+        if (isNaN(id)) {
+            return res.status(400).json({
+                message: "ID transaksi harus berupa angka."
+            });
+        }
+
+        const idTransaksi = parseInt(id);
+
+        const transaksi = await prisma.transaksi.findUnique({
+            where: {
+                id_transaksi: idTransaksi
+            },
+            include: {
+                transaksidetail: {
+                    include: {
+                        transaksibatch: true
+                    }
+                }
+            }
+        });
+
+        if (!transaksi) {
+            return res.status(404).json({
+                message: "Transaksi tidak ditemukan."
+            });
+        }
+
+        if (transaksi.status === "DIBATALKAN") {
+            return res.status(400).json({
+                message: "Transaksi sudah dibatalkan sebelumnya."
+            });
+        }
+
+        await prisma.$transaction(async (tx) => {
+
+            // 1. Kembalikan stok ke batch yang sebelumnya dipakai
+            for (const detail of transaksi.transaksidetail) {
+
+                for (const batch of detail.transaksibatch) {
+
+                    await tx.batchproduk.update({
+                        where: {
+                            id_batch: batch.id_batch
+                        },
+                        data: {
+                            qty_sisa: {
+                                increment: batch.qty_keluar
+                            }
+                        }
+                    });
+                }
+
+                // 2. Catat stok kembali sebagai KOREKSI
+                await tx.logstok.create({
+                    data: {
+                        id_produk: detail.id_produk,
+                        tipe: "KOREKSI",
+                        qty: detail.qty,
+                        sumber: "PEMBATALAN_TRANSAKSI"
+                    }
+                });
+            }
+
+            // 3. Tandai transaksi sebagai dibatalkan
+            await tx.transaksi.update({
+                where: {
+                    id_transaksi: idTransaksi
+                },
+                data: {
+                    status: "DIBATALKAN"
+                }
+            });
+        });
+
+        res.json({
+            message: "Transaksi berhasil dibatalkan dan stok telah dikembalikan."
+        });
+
+    } catch (error) {
+        console.error("BATAL_TRANSAKSI_ERROR:", error);
+
+        res.status(500).json({
+            message: "Gagal membatalkan transaksi.",
+            error: error.message
+        });
+    }
+};

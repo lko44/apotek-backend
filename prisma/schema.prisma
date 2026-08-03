@@ -127,12 +127,12 @@ model transaksi {
   no_transaksi      String                 @unique(map: "Transaksi_no_transaksi_key")
   tanggal_transaksi DateTime               @default(now())
   metode_bayar      transaksi_metode_bayar
+  status            transaksi_status       @default(SELESAI)
+  status            transaksi_status       @default(SELESAI)
   total             Decimal                @db.Decimal(15, 2)
   id_user           Int
   user              user                   @relation(fields: [id_user], references: [id_user], map: "Transaksi_id_user_fkey")
   transaksidetail   transaksidetail[]
-
-  @@index([id_user], map: "Transaksi_id_user_fkey")
 }
 
 model transaksibatch {
@@ -200,6 +200,11 @@ enum transaksi_metode_bayar {
   TRANSFER
 }
 
+enum transaksi_status {
+  SELESAI
+  DIBATALKAN
+}
+
 enum user_role {
   ADMIN
   STAFF
@@ -210,4 +215,9 @@ enum pembelian_status {
   LUNAS
   BELUM_DIBAYAR
   DIKEMBALIKAN
+}
+
+enum transaksi_status {
+  SELESAI
+  DIBATALKAN
 }

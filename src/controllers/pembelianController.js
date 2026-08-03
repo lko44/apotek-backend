@@ -20,21 +20,50 @@ exports.createPembelian = async (req, res) => {
 
 exports.getPembelian = async (req, res) => {
     try {
-        // --- KODE BARU DIMULAI DI SINI ---
-        const { limit = 10, page = 1 } = req.query;
+        const {
+            limit = 10,
+            page = 1,
+            search = ""
+        } = req.query;
 
         const take = parseInt(limit);
-        const skip = (page - 1) * take;
+        const currentPage = parseInt(page);
+        const skip = (currentPage - 1) * take;
 
-        const total = await prisma.pembelian.count();
+        const whereClause = search
+            ? {
+                OR: [
+                    {
+                        no_faktur: {
+                            contains: search
+                        }
+                    },
+                    {
+                        supplier: {
+                            nama_supplier: {
+                                contains: search
+                            }
+                        }
+                    }
+                ]
+            }
+            : {};
+
+        const total = await prisma.pembelian.count({
+            where: whereClause
+        });
+
         const totalPages = Math.ceil(total / take);
 
         const data = await prisma.pembelian.findMany({
+            where: whereClause,
             take,
             skip,
             include: {
                 supplier: {
-                    select: { nama_supplier: true }
+                    select: {
+                        nama_supplier: true
+                    }
                 },
                 pembeliandetail: {
                     include: {
@@ -56,13 +85,15 @@ exports.getPembelian = async (req, res) => {
                     }
                 }
             },
-            orderBy: { tanggal_faktur: "desc" }
+            orderBy: {
+                tanggal_faktur: "desc"
+            }
         });
 
-        // MAPPING UNTUK KEBUTUHAN FRONTEND (Flatten data batch)
         const formattedData = data.map(pembelian => {
             const formattedDetail = pembelian.pembeliandetail.map(detail => {
                 const batch = detail.batchproduk?.[0] || {};
+
                 return {
                     id_pembelian_detail: detail.id_pembelian_detail,
                     qty: detail.qty,
@@ -87,14 +118,19 @@ exports.getPembelian = async (req, res) => {
 
         res.json({
             status: "success",
-            page: parseInt(page),
+            page: currentPage,
+            limit: take,
+            search,
             total,
             totalPages,
             data: formattedData
         });
+
     } catch (error) {
         console.error("GET_PEMBELIAN_ERROR:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        res.status(500).json({
+            error: "Internal Server Error"
+        });
     }
 };
 
