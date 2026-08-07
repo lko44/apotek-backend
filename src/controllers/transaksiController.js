@@ -34,9 +34,9 @@ exports.createTransaksi = async (req, res) => {
             for (const item of items) {
                 // 2. Find product by barcode
                 const produk = await tx.produk.findFirst({
-                    where: {
-                        barcode: item.barcode
-                    }
+                    where: item.produk_id
+                        ? { id_produk: Number(item.produk_id) }
+                        : { barcode: item.barcode }
                 });
 
                 if (!produk) throw new Error(`Produk dengan barcode ${item.barcode} tidak ditemukan`);
