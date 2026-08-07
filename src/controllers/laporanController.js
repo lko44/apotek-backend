@@ -37,11 +37,12 @@ exports.getLaporanPenjualan = async (req, res) => {
         });
     }
 };
+
 exports.getProdukTidakLaku = async (req, res) => {
     try {
-        const hari = parseInt(req.query.hari) || 30;
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
+        const hari = Math.max(parseInt(req.query.hari) || 30, 1);
+        const page = Math.max(parseInt(req.query.page) || 1, 1);
+        const limit = Math.max(parseInt(req.query.limit) || 10, 1);
 
         const result = await laporanService.getProdukTidakLaku(
             hari,

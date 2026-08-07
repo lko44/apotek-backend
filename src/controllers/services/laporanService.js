@@ -2,32 +2,33 @@ const prisma = require("../../lib/prisma");
 
 exports.getProdukTerlaris = async () => {
     const result = await prisma.$queryRaw`
-    SELECT
-        p.id_produk,
-        p.nama_produk,
-        k.nama_kategori AS kategori,
-        SUM(td.qty) AS total_terjual,
-        SUM(td.subtotal) AS total_omzet
+        SELECT
+            p.id_produk,
+            p.nama_produk,
+            k.nama_kategori AS kategori,
+            SUM(td.qty) AS total_terjual,
+            SUM(td.subtotal) AS total_omzet
 
-    FROM transaksidetail td
+        FROM transaksidetail td
 
-    INNER JOIN transaksi t
-        ON t.id_transaksi = td.id_transaksi
-        AND t.status = 'SELESAI'
+        INNER JOIN transaksi t
+            ON t.id_transaksi = td.id_transaksi
 
-    INNER JOIN produk p
-        ON p.id_produk = td.id_produk
+        INNER JOIN produk p
+            ON p.id_produk = td.id_produk
 
-    INNER JOIN kategori k
-        ON k.id_kategori = p.id_kategori
+        INNER JOIN kategori k
+            ON k.id_kategori = p.id_kategori
 
-    GROUP BY
-        p.id_produk,
-        p.nama_produk,
-        k.nama_kategori
+        WHERE t.status = 'SELESAI'
 
-    ORDER BY total_terjual DESC;
-`;
+        GROUP BY
+            p.id_produk,
+            p.nama_produk,
+            k.nama_kategori
+
+        ORDER BY total_terjual DESC;
+    `;
 
     return result.map(item => ({
         ...item,
@@ -38,30 +39,30 @@ exports.getProdukTerlaris = async () => {
 
 exports.getLaporanPenjualan = async () => {
     const result = await prisma.$queryRaw`
-    SELECT
-        t.tanggal_transaksi AS tanggal,
-        t.no_transaksi AS no_faktur,
-        SUM(td.qty) AS item_terjual,
-        t.total,
-        t.metode_bayar AS metode,
-        'Sukses' AS status
+        SELECT
+            t.tanggal_transaksi AS tanggal,
+            t.no_transaksi AS no_faktur,
+            SUM(td.qty) AS item_terjual,
+            t.total,
+            t.metode_bayar AS metode,
+            'Sukses' AS status
 
-    FROM transaksi t
+        FROM transaksi t
 
-    INNER JOIN transaksidetail td
-        ON td.id_transaksi = t.id_transaksi
+        INNER JOIN transaksidetail td
+            ON td.id_transaksi = t.id_transaksi
 
-    WHERE t.status = 'SELESAI'
+        WHERE t.status = 'SELESAI'
 
-    GROUP BY
-        t.id_transaksi,
-        t.tanggal_transaksi,
-        t.no_transaksi,
-        t.total,
-        t.metode_bayar
+        GROUP BY
+            t.id_transaksi,
+            t.tanggal_transaksi,
+            t.no_transaksi,
+            t.total,
+            t.metode_bayar
 
-    ORDER BY t.tanggal_transaksi DESC;
-`;
+        ORDER BY t.tanggal_transaksi DESC;
+    `;
 
     return result.map(item => ({
         ...item,

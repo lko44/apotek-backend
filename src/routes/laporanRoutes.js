@@ -29,8 +29,8 @@ router.get("/produk-terlaris", auth, laporanController.getProdukTerlaris);
  *   get:
  *     tags:
  *       - Laporan
- *     summary: Mendapatkan laporan penjualan harian
- *     description: Menampilkan total transaksi dan total penjualan yang dikelompokkan berdasarkan tanggal transaksi.
+ *     summary: Mendapatkan laporan penjualan
+ *     description: Menampilkan daftar transaksi penjualan yang berhasil, beserta tanggal, nomor transaksi, jumlah item, total penjualan, dan metode pembayaran.
  *     security:
  *       - bearerAuth: []
  *     responses:
