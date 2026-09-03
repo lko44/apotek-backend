@@ -4,61 +4,116 @@ exports.createTransaksi = async (req, res) => {
     try {
         const { metode_bayar, items } = req.body;
         const id_user = req.user.id;
+        const id_shift = req.shift.id_shift; // set by requireActiveShift middleware
 
         if (!items || items.length === 0) {
-            return res.status(400).json({ message: "Keranjang belanja kosong!" });
-        }
-
-        // Quick verification: block invalid enums before opening a heavy database transaction
-        const validMetode = ["TUNAI", "QRIS", "TRANSFER"];
-        if (!validMetode.includes(metode_bayar)) {
             return res.status(400).json({
-                message: `Metode bayar '${metode_bayar}' tidak valid. Gunakan: TUNAI, QRIS, atau TRANSFER.`
+                message: "Keranjang belanja kosong!"
             });
         }
 
+        // Split payment validation
+        if (!Array.isArray(metode_bayar) || metode_bayar.length === 0) {
+            return res.status(400).json({
+                message: "metode_bayar harus berupa array, contoh: [{ jenis: 'TUNAI', nominal: 50000 }]"
+            });
+        }
+
+        const validMetode = ["TUNAI", "QRIS", "TRANSFER"];
+
+        for (const p of metode_bayar) {
+            if (!p || !validMetode.includes(p.jenis)) {
+                return res.status(400).json({
+                    message: `Jenis pembayaran '${p?.jenis}' tidak valid.`
+                });
+            }
+
+            if (
+                typeof p.nominal !== "number" ||
+                !Number.isFinite(p.nominal) ||
+                p.nominal <= 0
+            ) {
+                return res.status(400).json({
+                    message: "Setiap nominal pembayaran harus berupa angka positif."
+                });
+            }
+        }
+
         const result = await prisma.$transaction(async (tx) => {
-            // 1. Create base transaction entry
+
+            // 1. Create base transaction
             const transaksi = await tx.transaksi.create({
                 data: {
                     no_transaksi: "TRX-" + Date.now(),
-                    metode_bayar,
+
+                    // Legacy column: keep first payment method
+                    // only for historical compatibility/information.
+                    metode_bayar: metode_bayar[0].jenis,
+
                     status: "SELESAI",
                     total: 0,
-                    id_user: parseInt(id_user)
+                    id_user: parseInt(id_user),
+                    id_shift
                 }
             });
 
             let grandTotal = 0;
 
             for (const item of items) {
-                // 2. Find product by barcode
+
+                // 2. Find product by barcode or ID
                 const produk = await tx.produk.findFirst({
                     where: item.produk_id
                         ? { id_produk: Number(item.produk_id) }
                         : { barcode: item.barcode }
                 });
 
-                if (!produk) throw new Error(`Produk dengan barcode ${item.barcode} tidak ditemukan`);
-                if (!produk.is_active) throw new Error(`Produk ${produk.nama_produk} sudah tidak aktif`);
+                if (!produk) {
+                    throw new Error(
+                        `Produk dengan barcode ${item.barcode} tidak ditemukan`
+                    );
+                }
+
+                if (!produk.is_active) {
+                    throw new Error(
+                        `Produk ${produk.nama_produk} sudah tidak aktif`
+                    );
+                }
+
+                if (
+                    !Number.isInteger(item.qty) ||
+                    item.qty <= 0
+                ) {
+                    throw new Error(
+                        `Qty produk ${produk.nama_produk} harus berupa bilangan bulat positif`
+                    );
+                }
 
                 let sisaQtyYangMauDibeli = item.qty;
 
-                // 3. Fetch batches sorted by oldest expiry date (FEFO)
+                // 3. Fetch batches using FEFO
                 const batches = await tx.batchproduk.findMany({
                     where: {
                         id_produk: produk.id_produk,
                         qty_sisa: { gt: 0 }
                     },
-                    orderBy: { expired_date: "asc" }
+                    orderBy: {
+                        expired_date: "asc"
+                    }
                 });
 
-                const totalStokTersedia = batches.reduce((acc, curr) => acc + curr.qty_sisa, 0);
+                const totalStokTersedia = batches.reduce(
+                    (acc, curr) => acc + curr.qty_sisa,
+                    0
+                );
+
                 if (totalStokTersedia < item.qty) {
-                    throw new Error(`Stok ${produk.nama_produk} tidak cukup. Tersisa: ${totalStokTersedia}`);
+                    throw new Error(
+                        `Stok ${produk.nama_produk} tidak cukup. Tersisa: ${totalStokTersedia}`
+                    );
                 }
 
-                // 4. Create base transaction detail row
+                // 4. Create transaction detail
                 const detail = await tx.transaksidetail.create({
                     data: {
                         id_transaksi: transaksi.id_transaksi,
@@ -71,19 +126,30 @@ exports.createTransaksi = async (req, res) => {
 
                 let subtotalItem = 0;
 
-                // 5. Deduct from available inventory batches
+                // 5. Deduct stock using FEFO
                 for (const batch of batches) {
-                    if (sisaQtyYangMauDibeli <= 0) break;
+                    if (sisaQtyYangMauDibeli <= 0) {
+                        break;
+                    }
 
-                    const ambilDariBatchIni = Math.min(batch.qty_sisa, sisaQtyYangMauDibeli);
+                    const ambilDariBatchIni = Math.min(
+                        batch.qty_sisa,
+                        sisaQtyYangMauDibeli
+                    );
 
-                    // Update batch stock balance
+                    // Deduct batch stock
                     await tx.batchproduk.update({
-                        where: { id_batch: batch.id_batch },
-                        data: { qty_sisa: { decrement: ambilDariBatchIni } }
+                        where: {
+                            id_batch: batch.id_batch
+                        },
+                        data: {
+                            qty_sisa: {
+                                decrement: ambilDariBatchIni
+                            }
+                        }
                     });
 
-                    // Log which batch this transaction pulled from
+                    // Record exactly which batch was used
                     await tx.transaksibatch.create({
                         data: {
                             id_transaksi_detail: detail.id_transaksi_detail,
@@ -93,16 +159,23 @@ exports.createTransaksi = async (req, res) => {
                     });
 
                     sisaQtyYangMauDibeli -= ambilDariBatchIni;
-                    subtotalItem += ambilDariBatchIni * Number(produk.harga_jual);
+
+                    subtotalItem +=
+                        ambilDariBatchIni *
+                        Number(produk.harga_jual);
                 }
 
-                // 6. Update the subtotal for this item detail row
+                // 6. Update transaction detail subtotal
                 await tx.transaksidetail.update({
-                    where: { id_transaksi_detail: detail.id_transaksi_detail },
-                    data: { subtotal: subtotalItem }
+                    where: {
+                        id_transaksi_detail: detail.id_transaksi_detail
+                    },
+                    data: {
+                        subtotal: subtotalItem
+                    }
                 });
 
-                // 7. Write to general stock movement log
+                // 7. Write stock movement log
                 await tx.logstok.create({
                     data: {
                         id_produk: produk.id_produk,
@@ -115,16 +188,61 @@ exports.createTransaksi = async (req, res) => {
                 grandTotal += subtotalItem;
             }
 
-            // 8. Update grand total on the parent transaction record
+            // 8. Validate split payment total
+            const totalBayar = metode_bayar.reduce(
+                (sum, p) => sum + p.nominal,
+                0
+            );
+
+            if (Math.abs(totalBayar - grandTotal) > 0.01) {
+                throw new Error(
+                    `Total pembayaran (Rp${totalBayar.toLocaleString("id-ID")}) tidak sama dengan total transaksi (Rp${grandTotal.toLocaleString("id-ID")}).`
+                );
+            }
+
+            // 9. Save payment details
+            await tx.pembayaran.createMany({
+                data: metode_bayar.map((p) => ({
+                    id_transaksi: transaksi.id_transaksi,
+                    jenis: p.jenis,
+                    nominal: p.nominal
+                }))
+            });
+
+            // 10. Update final transaction + return payment details
             const transaksiFinal = await tx.transaksi.update({
-                where: { id_transaksi: transaksi.id_transaksi },
-                data: { total: grandTotal },
+                where: {
+                    id_transaksi: transaksi.id_transaksi
+                },
+                data: {
+                    total: grandTotal
+                },
                 include: {
                     transaksidetail: {
                         include: {
-                            produk: { select: { nama_produk: true } }
+                            produk: {
+                                select: {
+                                    id_produk: true,
+                                    nama_produk: true,
+                                    barcode: true,
+                                    harga_jual: true
+                                }
+                            },
+                            transaksibatch: {
+                                include: {
+                                    batchproduk: {
+                                        select: {
+                                            id_batch: true,
+                                            no_batch: true,
+                                            expired_date: true,
+                                            qty_sisa: true
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    }
+                    },
+                    pembayaran: true
                 }
             });
 
@@ -137,9 +255,14 @@ exports.createTransaksi = async (req, res) => {
         });
 
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        console.error("CREATE_TRANSAKSI_ERROR:", error);
+
+        res.status(400).json({
+            message: error.message
+        });
     }
 };
+
 
 exports.getAllTransaksi = async (req, res) => {
     try {

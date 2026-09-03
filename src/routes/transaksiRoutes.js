@@ -1,6 +1,7 @@
 const express = require("express")
 const router = express.Router()
 const auth = require("../middleware/authMiddleware")
+const { requireActiveShift } = require("../middleware/shiftMiddleware")
 const transaksiController = require("../controllers/transaksiController")
 
 /**
@@ -45,7 +46,7 @@ const transaksiController = require("../controllers/transaksiController")
  *       400:
  *         description: Data transaksi tidak valid
  */
-router.post("/", auth, transaksiController.createTransaksi)
+router.post("/", auth, requireActiveShift, transaksiController.createTransaksi)
 
 /**
  * @openapi

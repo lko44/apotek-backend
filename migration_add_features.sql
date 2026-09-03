@@ -1,6 +1,5 @@
 -- AlterTable
-ALTER TABLE `transaksi` ADD COLUMN `id_shift` INTEGER NULL,
-    ADD COLUMN `status` ENUM('SELESAI', 'DIBATALKAN') NOT NULL DEFAULT 'SELESAI';
+ALTER TABLE `transaksi` ADD COLUMN `id_shift` INTEGER NULL;
 
 -- CreateTable
 CREATE TABLE `pembayaran` (
