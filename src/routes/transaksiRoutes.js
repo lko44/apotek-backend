@@ -10,6 +10,7 @@ const transaksiController = require("../controllers/transaksiController")
  *   post:
  *     tags: [Transaksi]
  *     summary: Membuat transaksi penjualan
+ *     description: Membuat transaksi dengan validasi shift aktif, mendukung single payment maupun split payment, serta otomatis mengurangi stok menggunakan metode FEFO.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -23,11 +24,29 @@ const transaksiController = require("../controllers/transaksiController")
  *               - items
  *             properties:
  *               metode_bayar:
- *                 type: string
- *                 enum: [TUNAI, QRIS, TRANSFER]
- *                 example: TUNAI
+ *                 type: array
+ *                 description: Daftar pembayaran. Total seluruh nominal harus sama dengan total transaksi.
+ *                 minItems: 1
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - jenis
+ *                     - nominal
+ *                   properties:
+ *                     jenis:
+ *                       type: string
+ *                       enum:
+ *                         - TUNAI
+ *                         - QRIS
+ *                         - TRANSFER
+ *                       example: TUNAI
+ *                     nominal:
+ *                       type: number
+ *                       format: double
+ *                       example: 50000
  *               items:
  *                 type: array
+ *                 minItems: 1
  *                 items:
  *                   type: object
  *                   required:
@@ -36,15 +55,44 @@ const transaksiController = require("../controllers/transaksiController")
  *                   properties:
  *                     barcode:
  *                       type: string
- *                       example: "8999990001234"
+ *                       example: "8999999008840"
+ *                     produk_id:
+ *                       type: integer
+ *                       example: 2103
  *                     qty:
  *                       type: integer
- *                       example: 2
+ *                       minimum: 1
+ *                       example: 1
+ *           examples:
+ *             singlePayment:
+ *               summary: Single payment
+ *               value:
+ *                 metode_bayar:
+ *                   - jenis: TUNAI
+ *                     nominal: 64500
+ *                 items:
+ *                   - barcode: "8999999008840"
+ *                     qty: 1
+ *             splitPayment:
+ *               summary: Split payment
+ *               value:
+ *                 metode_bayar:
+ *                   - jenis: TUNAI
+ *                     nominal: 30000
+ *                   - jenis: QRIS
+ *                     nominal: 34500
+ *                 items:
+ *                   - barcode: "8999999008840"
+ *                     qty: 1
  *     responses:
  *       201:
  *         description: Transaksi berhasil dibuat
  *       400:
- *         description: Data transaksi tidak valid
+ *         description: Data transaksi tidak valid atau total pembayaran tidak sesuai total transaksi
+ *       403:
+ *         description: Tidak memiliki shift aktif
+ *       500:
+ *         description: Gagal memproses transaksi
  */
 router.post("/", auth, requireActiveShift, transaksiController.createTransaksi)
 
