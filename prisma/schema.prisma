@@ -66,6 +66,17 @@ model pembelian {
   @@index([id_user], map: "Pembelian_id_user_fkey")
 }
 
+model pembayaran {
+  id_pembayaran Int                    @id @default(autoincrement())
+  id_transaksi  Int
+  jenis         transaksi_metode_bayar
+  nominal       Decimal                @db.Decimal(15, 2)
+  created_at    DateTime               @default(now())
+  transaksi     transaksi              @relation(fields: [id_transaksi], references: [id_transaksi], map: "Pembayaran_id_transaksi_fkey")
+
+  @@index([id_transaksi], map: "Pembayaran_id_transaksi_fkey")
+}
+
 model pembeliandetail {
   id_pembelian_detail Int           @id @default(autoincrement())
   id_pembelian        Int
@@ -97,6 +108,7 @@ model produk {
   kategori        kategori          @relation(fields: [id_kategori], references: [id_kategori], map: "Produk_id_kategori_fkey")
   satuan          satuan            @relation(fields: [satuan_id], references: [id], map: "fk_produk_satuan")
   transaksidetail transaksidetail[]
+  hold_item       hold_item[]
 
   @@unique([barcode, satuan_id], map: "barcode")
   @@unique([barcode, satuan_id], map: "unique_barcode_satuan")
@@ -112,13 +124,12 @@ model satuan {
 }
 
 model supplier {
-  id_supplier   Int      @id @default(autoincrement())
+  id_supplier   Int         @id @default(autoincrement())
   nama_supplier String
-  email         String? @unique
+  email         String?
   telepon       String?
-  alamat        String? @db.Text
-  created_at    DateTime @default(now())
-
+  alamat        String?     @db.Text
+  created_at    DateTime    @default(now())
   pembelian     pembelian[]
 }
 
@@ -128,11 +139,16 @@ model transaksi {
   tanggal_transaksi DateTime               @default(now())
   metode_bayar      transaksi_metode_bayar
   status            transaksi_status       @default(SELESAI)
-  status            transaksi_status       @default(SELESAI)
   total             Decimal                @db.Decimal(15, 2)
   id_user           Int
+  id_shift          Int?
   user              user                   @relation(fields: [id_user], references: [id_user], map: "Transaksi_id_user_fkey")
+  shift             shift?                 @relation(fields: [id_shift], references: [id_shift], map: "Transaksi_id_shift_fkey")
   transaksidetail   transaksidetail[]
+  pembayaran        pembayaran[]
+
+  @@index([id_user], map: "Transaksi_id_user_fkey")
+  @@index([id_shift], map: "Transaksi_id_shift_fkey")
 }
 
 model transaksibatch {
@@ -174,6 +190,8 @@ model user {
   pembelian        pembelian[]
   transaksi        transaksi[]
   verificationcode verificationcode[]
+  shift            shift[]
+  hold             hold[]
 }
 
 model verificationcode {
@@ -188,6 +206,46 @@ model verificationcode {
   @@index([id_user], map: "VerificationCode_id_user_fkey")
 }
 
+model shift {
+  id_shift     Int          @id @default(autoincrement())
+  id_user      Int
+  status       shift_status @default(OPEN)
+  modal_awal   Decimal      @db.Decimal(15, 2)
+  modal_akhir  Decimal?     @db.Decimal(15, 2)
+  waktu_buka   DateTime     @default(now())
+  waktu_tutup  DateTime?
+  user         user         @relation(fields: [id_user], references: [id_user], map: "Shift_id_user_fkey")
+  transaksi    transaksi[]
+
+  @@index([id_user], map: "Shift_id_user_fkey")
+}
+
+model hold {
+  id_hold       Int        @id @default(autoincrement())
+  nama_pelanggan String
+  alasan        String?    @db.Text
+  status        hold_status @default(HELD)
+  id_user       Int
+  created_at    DateTime   @default(now())
+  user          user       @relation(fields: [id_user], references: [id_user], map: "Hold_id_user_fkey")
+  hold_item     hold_item[]
+
+  @@index([id_user], map: "Hold_id_user_fkey")
+}
+
+model hold_item {
+  id_hold_item Int      @id @default(autoincrement())
+  id_hold      Int
+  id_produk    Int
+  qty          Int
+  harga_jual   Decimal  @db.Decimal(15, 2)
+  hold         hold     @relation(fields: [id_hold], references: [id_hold], map: "HoldItem_id_hold_fkey")
+  produk       produk   @relation(fields: [id_produk], references: [id_produk], map: "HoldItem_id_produk_fkey")
+
+  @@index([id_hold], map: "HoldItem_id_hold_fkey")
+  @@index([id_produk], map: "HoldItem_id_produk_fkey")
+}
+
 enum logstok_tipe {
   MASUK
   KELUAR
@@ -198,11 +256,6 @@ enum transaksi_metode_bayar {
   TUNAI
   QRIS
   TRANSFER
-}
-
-enum transaksi_status {
-  SELESAI
-  DIBATALKAN
 }
 
 enum user_role {
@@ -220,4 +273,15 @@ enum pembelian_status {
 enum transaksi_status {
   SELESAI
   DIBATALKAN
+}
+
+enum shift_status {
+  OPEN
+  CLOSED
+}
+
+enum hold_status {
+  HELD
+  RECALLED
+  CANCELLED
 }

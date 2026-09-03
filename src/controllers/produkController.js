@@ -264,7 +264,6 @@ exports.updateProduk = async (req, res) => {
 
         res.json({ message: "Update sukses", data: produk });
     } catch (error) {
-        // 🛡️ ERROR HANDLER: Tangkap error Prisma (Data tidak ditemukan, atau FK error)
         if (error.code === 'P2025') {
             return res.status(404).json({ error: "Gagal update: Produk dengan ID tersebut tidak ditemukan." });
         }

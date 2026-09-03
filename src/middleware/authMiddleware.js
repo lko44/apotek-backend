@@ -5,7 +5,7 @@ const authMiddleware = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return res.status(401).json({ message: "Token format salah" });
+            return res.status(401).json({ message: "Maaf daerah ini hanya bisa di akses oleh Admin saja" });
         }
 
         const token = authHeader.split(" ")[1];
@@ -17,7 +17,7 @@ const authMiddleware = async (req, res, next) => {
 
         if (!user) return res.status(401).json({ message: "User tidak ditemukan" });
 
-        // Attach user info for the next middleware to use
+
         req.user = { id: user.id_user, role: user.role };
         next();
     } catch (err) {
@@ -25,4 +25,4 @@ const authMiddleware = async (req, res, next) => {
     }
 };
 
-module.exports = authMiddleware; // Only one export here
+module.exports = authMiddleware; 
