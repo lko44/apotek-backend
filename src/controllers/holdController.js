@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma")
+const { logAksi } = require("../lib/auditLog");
 
 exports.createHold = async (req, res) => {
     try {
@@ -99,6 +100,12 @@ exports.cancelHold = async (req, res) => {
             where: { id_hold: Number(id) },
             data: { status: "CANCELLED" }
         });
+
+        await logAksi(
+            req.user.id,
+            "CANCEL_HOLD",
+            `Membatalkan hold #${id}`
+        );
 
         res.json({ message: "Hold berhasil dibatalkan." });
 

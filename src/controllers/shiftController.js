@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma")
+const { logAksi } = require("../lib/auditLog");
 
 exports.getActiveShift = async (req, res) => {
     try {
@@ -40,6 +41,12 @@ exports.bukaShift = async (req, res) => {
             }
         });
 
+        await logAksi(
+            req.user.id,
+            "OPEN_SHIFT",
+            `Membuka shift dengan modal awal Rp${modal_awal}`
+        );
+
         res.status(201).json({ message: "Shift berhasil dibuka.", data: shift });
 
     } catch (error) {
@@ -71,6 +78,12 @@ exports.tutupShift = async (req, res) => {
                 waktu_tutup: new Date()
             }
         });
+
+        await logAksi(
+            req.user.id,
+            "CLOSE_SHIFT",
+            `Menutup shift dengan modal akhir Rp${modal_akhir}`
+        );
 
         res.json({ message: "Shift berhasil ditutup.", data: updated });
 

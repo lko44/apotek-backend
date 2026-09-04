@@ -1,4 +1,5 @@
 const prisma = require("../../lib/prisma");
+const { Prisma } = require("@prisma/client");
 
 exports.getProdukTerlaris = async () => {
     const result = await prisma.$queryRaw`
@@ -223,4 +224,35 @@ exports.getKinerjaKasir = async () => {
         jumlah_transaksi: Number(item.jumlah_transaksi),
         total_omzet: Number(item.total_omzet)
     }));
+};
+
+exports.getAuditLog = async (page, limit) => {
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+        prisma.audit_log.findMany({
+            include: {
+                user: {
+                    select: {
+                        id_user: true,
+                        nama: true
+                    }
+                }
+            },
+            orderBy: {
+                created_at: "desc"
+            },
+            skip,
+            take: limit
+        }),
+        prisma.audit_log.count()
+    ]);
+
+    return {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        data
+    };
 };

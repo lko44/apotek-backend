@@ -87,4 +87,41 @@ router.get("/tidak-laku", auth, laporanController.getProdukTidakLaku);
 
 router.get("/kinerja-kasir", auth, laporanController.getKinerjaKasir);
 
+/**
+ * @openapi
+ * /api/v1/laporan/audit-log:
+ *   get:
+ *     tags:
+ *       - Laporan
+ *     summary: Mendapatkan audit log
+ *     description: Mengambil riwayat aktivitas penting pengguna dengan pagination.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Nomor halaman.
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 20
+ *         description: Jumlah data per halaman.
+ *     responses:
+ *       200:
+ *         description: Berhasil mengambil audit log
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get("/audit-log", auth, laporanController.getAuditLog);
+
 module.exports = router;

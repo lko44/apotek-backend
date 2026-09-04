@@ -78,3 +78,25 @@ exports.getKinerjaKasir = async (req, res) => {
         res.status(500).json({ message: "Gagal mengambil data kinerja kasir", error: error.message });
     }
 };
+
+exports.getAuditLog = async (req, res) => {
+    try {
+        const page = Math.max(parseInt(req.query.page) || 1, 1);
+        const limit = Math.max(parseInt(req.query.limit) || 20, 1);
+
+        const result = await laporanService.getAuditLog(page, limit);
+
+        res.json({
+            message: "Berhasil mengambil audit log",
+            ...result
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        res.status(500).json({
+            message: "Gagal mengambil audit log",
+            error: error.message
+        });
+    }
+};

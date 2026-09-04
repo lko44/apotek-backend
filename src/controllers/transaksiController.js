@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma")
+const { logAksi } = require("../lib/auditLog");
 
 exports.createTransaksi = async (req, res) => {
     try {
@@ -419,6 +420,12 @@ exports.batalkanTransaksi = async (req, res) => {
                 }
             });
         });
+
+        await logAksi(
+            req.user.id,
+            "CANCEL_TRANSAKSI",
+            `Membatalkan transaksi #${idTransaksi}`
+        );
 
         res.json({
             message: "Transaksi berhasil dibatalkan dan stok telah dikembalikan."
