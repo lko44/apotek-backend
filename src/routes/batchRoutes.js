@@ -1,6 +1,6 @@
 const express = require("express")
 const router = express.Router()
-const batch = require("../controllers/batchControllers")
+const batchController = require("../controllers/batchControllers")
 const auth = require("../middleware/authMiddleware");
 
 /**
