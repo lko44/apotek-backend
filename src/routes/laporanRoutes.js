@@ -85,6 +85,68 @@ router.get("/penjualan", auth, laporanController.getLaporanPenjualan);
  */
 router.get("/tidak-laku", auth, laporanController.getProdukTidakLaku);
 
+/**
+ * @openapi
+ * /api/v1/laporan/kinerja-kasir:
+ *   get:
+ *     tags:
+ *       - Laporan
+ *     summary: Mendapatkan data kinerja kasir
+ *     description: Menampilkan kinerja setiap kasir berdasarkan shift, jumlah transaksi yang berhasil, dan total omzet.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Berhasil mengambil data kinerja kasir
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Berhasil mengambil data kinerja kasir
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id_user:
+ *                         type: integer
+ *                         example: 1
+ *                       nama_kasir:
+ *                         type: string
+ *                         example: Admin Utama
+ *                       id_shift:
+ *                         type: integer
+ *                         example: 1
+ *                       waktu_buka:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2026-09-03T14:04:22.519Z"
+ *                       waktu_tutup:
+ *                         type: string
+ *                         format: date-time
+ *                         nullable: true
+ *                         example: "2026-09-04T03:39:55.343Z"
+ *                       status_shift:
+ *                         type: string
+ *                         enum:
+ *                           - OPEN
+ *                           - CLOSED
+ *                         example: CLOSED
+ *                       jumlah_transaksi:
+ *                         type: integer
+ *                         example: 10
+ *                       total_omzet:
+ *                         type: number
+ *                         format: double
+ *                         example: 645000
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal Server Error
+ */
 router.get("/kinerja-kasir", auth, laporanController.getKinerjaKasir);
 
 /**
