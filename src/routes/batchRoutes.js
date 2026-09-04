@@ -1,6 +1,6 @@
 const express = require("express")
 const router = express.Router()
-const batchController = require("../controllers/batchControllers")
+const batchControllers = require("../controllers/batchControllers")
 const auth = require("../middleware/authMiddleware");
 
 /**
@@ -42,7 +42,7 @@ const auth = require("../middleware/authMiddleware");
 router.get(
     "/hampir-expired",
     auth,
-    batchController.getBatchHampirExpired
+    batchControllers.getBatchHampirExpired
 );
 
 module.exports = router
