@@ -1,6 +1,7 @@
 const express = require("express")
 const router = express.Router()
 const batch = require("../controllers/batchControllers")
+const auth = require("../middleware/authMiddleware");
 
 /**
  * @openapi
@@ -38,6 +39,10 @@ const batch = require("../controllers/batchControllers")
  *                         type: integer
  *                         example: 20
  */
-router.get("/hampir-expired", batch.getBatchHampirExpired)
+router.get(
+    "/hampir-expired",
+    auth,
+    batchController.getBatchHampirExpired
+);
 
 module.exports = router
