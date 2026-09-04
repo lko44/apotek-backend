@@ -37,7 +37,11 @@ exports.getProdukTerlaris = async () => {
     }));
 };
 
-exports.getLaporanPenjualan = async () => {
+exports.getLaporanPenjualan = async (tanggal) => {
+    const filterTanggal = tanggal
+        ? Prisma.sql`AND DATE(t.tanggal_transaksi) = ${tanggal}`
+        : Prisma.sql``;
+
     const result = await prisma.$queryRaw`
         SELECT
             t.tanggal_transaksi AS tanggal,
@@ -53,6 +57,7 @@ exports.getLaporanPenjualan = async () => {
             ON td.id_transaksi = t.id_transaksi
 
         WHERE t.status = 'SELESAI'
+        ${filterTanggal}
 
         GROUP BY
             t.id_transaksi,
@@ -184,4 +189,38 @@ exports.getProdukTidakLaku = async (hari, page, limit) => {
                     : Number(item.durasi_tidak_laku)
         }))
     };
+};
+
+exports.getKinerjaKasir = async () => {
+    const result = await prisma.$queryRaw`
+        SELECT
+            u.id_user,
+            u.nama AS nama_kasir,
+            s.id_shift,
+            s.waktu_buka,
+            s.waktu_tutup,
+            s.status AS status_shift,
+            COUNT(t.id_transaksi) AS jumlah_transaksi,
+            COALESCE(SUM(t.total), 0) AS total_omzet
+
+        FROM shift s
+
+        INNER JOIN user u
+            ON u.id_user = s.id_user
+
+        LEFT JOIN transaksi t
+            ON t.id_shift = s.id_shift
+            AND t.status = 'SELESAI'
+
+        GROUP BY
+            s.id_shift, u.id_user, u.nama, s.waktu_buka, s.waktu_tutup, s.status
+
+        ORDER BY s.waktu_buka DESC;
+    `;
+
+    return result.map(item => ({
+        ...item,
+        jumlah_transaksi: Number(item.jumlah_transaksi),
+        total_omzet: Number(item.total_omzet)
+    }));
 };

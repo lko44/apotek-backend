@@ -6,54 +6,41 @@ exports.getBatchHampirExpired = async (req, res) => {
       return res.status(403).json({ message: "Akses ditolak. Bukan area kamu!" });
     }
 
+    const hari = Math.max(parseInt(req.query.hari) || 30, 1);
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const batas = new Date();
-    batas.setDate(today.getDate() + 30);
+    batas.setDate(today.getDate() + hari);
 
-    const batch = await prisma.batchProduk.findMany({
+    const batch = await prisma.batchproduk.findMany({
       where: {
-        expired_date: {
-          gte: today, 
-          lte: batas  
-        },
-        qty_sisa: {
-          gt: 0 
-        }
+        expired_date: { gte: today, lte: batas },
+        qty_sisa: { gt: 0 }
       },
       include: {
         produk: {
-          select: {
-            nama_produk: true,
-            barcode: true,
-            satuan: true 
-          }
+          select: { nama_produk: true, barcode: true, satuan: true }
         }
       },
-      orderBy: {
-        expired_date: "asc" 
-      }
+      orderBy: { expired_date: "asc" }
     });
 
     if (batch.length === 0) {
-      return res.status(200).json({ 
-        message: "Aman, Bos! Gak ada obat yang mau expired dalam 30 hari.",
-        data: [] 
+      return res.status(200).json({
+        message: `Aman, Bos! Gak ada obat yang mau expired dalam ${hari} hari.`,
+        data: []
       });
     }
 
-    res.json({
-      status: "success",
-      total: batch.length,
-      data: batch
-    });
+    res.json({ status: "success", total: batch.length, data: batch });
 
   } catch (error) {
-    console.error("BATCH_EXPIRED_ERROR:", error); 
+    console.error("BATCH_EXPIRED_ERROR:", error);
     res.status(500).json({
       error: "Gagal mengambil data batch.",
-      message: "Terjadi kesalahan pada server internal." 
+      message: "Terjadi kesalahan pada server internal."
     });
   }
 };

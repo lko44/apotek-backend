@@ -85,4 +85,6 @@ router.get("/penjualan", auth, laporanController.getLaporanPenjualan);
  */
 router.get("/tidak-laku", auth, laporanController.getProdukTidakLaku);
 
+router.get("/kinerja-kasir", auth, laporanController.getKinerjaKasir);
+
 module.exports = router;

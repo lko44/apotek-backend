@@ -192,6 +192,7 @@ model user {
   verificationcode verificationcode[]
   shift            shift[]
   hold             hold[]
+  audit_log        audit_log[]
 }
 
 model verificationcode {
@@ -207,43 +208,54 @@ model verificationcode {
 }
 
 model shift {
-  id_shift     Int          @id @default(autoincrement())
-  id_user      Int
-  status       shift_status @default(OPEN)
-  modal_awal   Decimal      @db.Decimal(15, 2)
-  modal_akhir  Decimal?     @db.Decimal(15, 2)
-  waktu_buka   DateTime     @default(now())
-  waktu_tutup  DateTime?
-  user         user         @relation(fields: [id_user], references: [id_user], map: "Shift_id_user_fkey")
-  transaksi    transaksi[]
+  id_shift    Int          @id @default(autoincrement())
+  id_user     Int
+  status      shift_status @default(OPEN)
+  modal_awal  Decimal      @db.Decimal(15, 2)
+  modal_akhir Decimal?     @db.Decimal(15, 2)
+  waktu_buka  DateTime     @default(now())
+  waktu_tutup DateTime?
+  user        user         @relation(fields: [id_user], references: [id_user], map: "Shift_id_user_fkey")
+  transaksi   transaksi[]
 
   @@index([id_user], map: "Shift_id_user_fkey")
 }
 
 model hold {
-  id_hold       Int        @id @default(autoincrement())
+  id_hold        Int         @id @default(autoincrement())
   nama_pelanggan String
-  alasan        String?    @db.Text
-  status        hold_status @default(HELD)
-  id_user       Int
-  created_at    DateTime   @default(now())
-  user          user       @relation(fields: [id_user], references: [id_user], map: "Hold_id_user_fkey")
-  hold_item     hold_item[]
+  alasan         String?     @db.Text
+  status         hold_status @default(HELD)
+  id_user        Int
+  created_at     DateTime    @default(now())
+  user           user        @relation(fields: [id_user], references: [id_user], map: "Hold_id_user_fkey")
+  hold_item      hold_item[]
 
   @@index([id_user], map: "Hold_id_user_fkey")
 }
 
 model hold_item {
-  id_hold_item Int      @id @default(autoincrement())
+  id_hold_item Int     @id @default(autoincrement())
   id_hold      Int
   id_produk    Int
   qty          Int
-  harga_jual   Decimal  @db.Decimal(15, 2)
-  hold         hold     @relation(fields: [id_hold], references: [id_hold], map: "HoldItem_id_hold_fkey")
-  produk       produk   @relation(fields: [id_produk], references: [id_produk], map: "HoldItem_id_produk_fkey")
+  harga_jual   Decimal @db.Decimal(15, 2)
+  hold         hold    @relation(fields: [id_hold], references: [id_hold], map: "HoldItem_id_hold_fkey")
+  produk       produk  @relation(fields: [id_produk], references: [id_produk], map: "HoldItem_id_produk_fkey")
 
   @@index([id_hold], map: "HoldItem_id_hold_fkey")
   @@index([id_produk], map: "HoldItem_id_produk_fkey")
+}
+
+model audit_log {
+  id_log     Int      @id @default(autoincrement())
+  id_user    Int
+  aksi       String   @db.VarChar(100)
+  deskripsi  String?  @db.Text
+  created_at DateTime @default(now())
+  user       user     @relation(fields: [id_user], references: [id_user], map: "AuditLog_id_user_fkey")
+
+  @@index([id_user], map: "AuditLog_id_user_fkey")
 }
 
 enum logstok_tipe {
