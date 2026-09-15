@@ -123,8 +123,125 @@ router.post("/buka", auth, shiftController.bukaShift)
  */
 router.put("/tutup", auth, shiftController.tutupShift)
 
+/**
+ * @openapi
+ * /api/v1/shift:
+ *   get:
+ *     tags: [Shift]
+ *     summary: Daftar riwayat shift
+ *     description: Menampilkan seluruh shift (OPEN maupun CLOSED) beserta ringkasan total transaksi dan omzet per shift.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: start_date
+ *         schema: { type: string, format: date, example: "2026-09-01" }
+ *         description: Filter shift yang dibuka mulai tanggal ini
+ *       - in: query
+ *         name: end_date
+ *         schema: { type: string, format: date, example: "2026-09-30" }
+ *         description: Filter shift yang dibuka sampai tanggal ini
+ *       - in: query
+ *         name: id_user
+ *         schema: { type: integer, example: 1 }
+ *         description: Filter berdasarkan kasir
+ *       - in: query
+ *         name: status
+ *         schema: { type: string, enum: [OPEN, CLOSED] }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *     responses:
+ *       200:
+ *         description: Berhasil mengambil daftar shift
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id_shift: { type: integer, example: 5 }
+ *                       id_user: { type: integer, example: 1 }
+ *                       nama_kasir: { type: string, example: Admin Utama }
+ *                       status: { type: string, enum: [OPEN, CLOSED] }
+ *                       modal_awal: { type: string, example: "500000" }
+ *                       modal_akhir: { type: string, nullable: true, example: "545000" }
+ *                       waktu_buka: { type: string, format: date-time }
+ *                       waktu_tutup: { type: string, format: date-time, nullable: true }
+ *                       total_transaksi: { type: integer, example: 12 }
+ *                       total_omzet: { type: number, example: 645000 }
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total: { type: integer, example: 5 }
+ *                     page: { type: integer, example: 1 }
+ *                     limit: { type: integer, example: 20 }
+ *                     totalPages: { type: integer, example: 1 }
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Gagal mengambil daftar shift
+ */
 router.get("/", auth, shiftController.getAllShift)
 
+/**
+ * @openapi
+ * /api/v1/shift/{id}:
+ *   get:
+ *     tags: [Shift]
+ *     summary: Detail satu shift beserta transaksinya
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer, example: 5 }
+ *     responses:
+ *       200:
+ *         description: Detail shift berhasil diambil
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id_shift: { type: integer, example: 5 }
+ *                     id_user: { type: integer, example: 1 }
+ *                     nama_kasir: { type: string, example: Admin Utama }
+ *                     status: { type: string, enum: [OPEN, CLOSED] }
+ *                     modal_awal: { type: string, example: "500000" }
+ *                     modal_akhir: { type: string, nullable: true }
+ *                     waktu_buka: { type: string, format: date-time }
+ *                     waktu_tutup: { type: string, format: date-time, nullable: true }
+ *                     total_transaksi: { type: integer, example: 12 }
+ *                     total_omzet: { type: number, example: 645000 }
+ *                     transaksi:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id_transaksi: { type: integer, example: 102 }
+ *                           no_transaksi: { type: string, example: "TRX-1788444865742" }
+ *                           total: { type: string, example: "64500" }
+ *                           status: { type: string, enum: [SELESAI, DIBATALKAN] }
+ *                           tanggal_transaksi: { type: string, format: date-time }
+ *       400:
+ *         description: ID shift tidak valid
+ *       404:
+ *         description: Shift tidak ditemukan
+ *       500:
+ *         description: Gagal mengambil detail shift
+ */
 router.get("/:id", auth, shiftController.getShiftById)
 
 module.exports = router

@@ -9,8 +9,12 @@ const transaksiController = require("../controllers/transaksiController")
  * /api/v1/transaksi:
  *   post:
  *     tags: [Transaksi]
- *     summary: Membuat transaksi penjualan
- *     description: Membuat transaksi dengan validasi shift aktif, mendukung single payment maupun split payment, serta otomatis mengurangi stok menggunakan metode FEFO.
+ *     summary: Membuat transaksi penjualan (mendukung split payment)
+ *     description: |
+ *       Membuat transaksi penjualan. Kasir WAJIB memiliki shift berstatus OPEN,
+ *       jika tidak request akan ditolak dengan status 403.
+ *       Transaksi otomatis diasosiasikan dengan shift aktif milik user tersebut.
+ *       Total seluruh `nominal` pada `metode_bayar` harus sama persis dengan grand total transaksi.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -19,80 +23,63 @@ const transaksiController = require("../controllers/transaksiController")
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - metode_bayar
- *               - items
+ *             required: [metode_bayar, items]
  *             properties:
  *               metode_bayar:
  *                 type: array
- *                 description: Daftar pembayaran. Total seluruh nominal harus sama dengan total transaksi.
- *                 minItems: 1
+ *                 description: Daftar pembayaran; bisa lebih dari satu untuk split payment
  *                 items:
  *                   type: object
- *                   required:
- *                     - jenis
- *                     - nominal
+ *                   required: [jenis, nominal]
  *                   properties:
- *                     jenis:
- *                       type: string
- *                       enum:
- *                         - TUNAI
- *                         - QRIS
- *                         - TRANSFER
- *                       example: TUNAI
- *                     nominal:
- *                       type: number
- *                       format: double
- *                       example: 50000
+ *                     jenis: { type: string, enum: [TUNAI, QRIS, TRANSFER], example: TUNAI }
+ *                     nominal: { type: number, example: 7500 }
+ *                 example:
+ *                   - { jenis: TUNAI, nominal: 7500 }
+ *                   - { jenis: QRIS, nominal: 11000 }
  *               items:
  *                 type: array
- *                 minItems: 1
  *                 items:
  *                   type: object
- *                   required:
- *                     - barcode
- *                     - qty
+ *                   required: [qty]
  *                   properties:
- *                     barcode:
- *                       type: string
- *                       example: "8999999008840"
- *                     produk_id:
- *                       type: integer
- *                       example: 2103
- *                     qty:
- *                       type: integer
- *                       minimum: 1
- *                       example: 1
- *           examples:
- *             singlePayment:
- *               summary: Single payment
- *               value:
- *                 metode_bayar:
- *                   - jenis: TUNAI
- *                     nominal: 64500
- *                 items:
- *                   - barcode: "8999999008840"
- *                     qty: 1
- *             splitPayment:
- *               summary: Split payment
- *               value:
- *                 metode_bayar:
- *                   - jenis: TUNAI
- *                     nominal: 30000
- *                   - jenis: QRIS
- *                     nominal: 34500
- *                 items:
- *                   - barcode: "8999999008840"
- *                     qty: 1
+ *                     barcode: { type: string, example: "0304091804812009" }
+ *                     produk_id: { type: integer, example: 1 }
+ *                     qty: { type: integer, example: 1 }
  *     responses:
  *       201:
  *         description: Transaksi berhasil dibuat
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: Transaksi berhasil }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id_transaksi: { type: integer, example: 102 }
+ *                     no_transaksi: { type: string, example: "TRX-1788444865742" }
+ *                     status: { type: string, enum: [SELESAI, DIBATALKAN] }
+ *                     total: { type: string, example: "18500" }
+ *                     id_shift: { type: integer, example: 8 }
+ *                     pembayaran:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id_pembayaran: { type: integer, example: 1 }
+ *                           id_transaksi: { type: integer, example: 102 }
+ *                           jenis: { type: string, enum: [TUNAI, QRIS, TRANSFER] }
+ *                           nominal: { type: string, example: "7500" }
+ *                     transaksidetail:
+ *                       type: array
+ *                       items:
+ *                         type: object
  *       400:
- *         description: Data transaksi tidak valid atau total pembayaran tidak sesuai total transaksi
+ *         description: Data tidak valid, stok kurang, atau total pembayaran tidak sesuai
  *       403:
- *         description: Tidak memiliki shift aktif
- *       500:
- *         description: Gagal memproses transaksi
+ *         description: Kasir belum membuka shift
  */
 router.post("/", auth, requireActiveShift, transaksiController.createTransaksi)
 
@@ -107,6 +94,27 @@ router.post("/", auth, requireActiveShift, transaksiController.createTransaksi)
  *     responses:
  *       200:
  *         description: Berhasil mengambil semua transaksi
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id_transaksi: { type: integer, example: 102 }
+ *                   no_transaksi: { type: string, example: "TRX-1788444865742" }
+ *                   tanggal_transaksi: { type: string, format: date-time }
+ *                   metode_bayar: { type: string, enum: [TUNAI, QRIS, TRANSFER], description: Kolom legacy, metode pembayaran pertama }
+ *                   status: { type: string, enum: [SELESAI, DIBATALKAN] }
+ *                   total: { type: string, example: "64500" }
+ *                   total_item: { type: integer, example: 3, description: Total qty seluruh item dalam transaksi }
+ *                   id_user: { type: integer, example: 1 }
+ *                   id_shift: { type: integer, nullable: true, example: 1 }
+ *                   user:
+ *                     type: object
+ *                     properties:
+ *                       id_user: { type: integer, example: 1 }
+ *                       nama: { type: string, example: Admin Utama }
  *       500:
  *         description: Gagal mengambil data transaksi
  */
