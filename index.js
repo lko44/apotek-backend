@@ -14,6 +14,7 @@ const satuanRoutes = require("./src/routes/satuanRoute");
 const laporanRourtes = require("./src/routes/laporanRoutes");
 const shiftRoutes = require("./src/routes/shiftRoutes");
 const holdRoutes = require("./src/routes/holdRoute");
+const kasKecRoutes = require("./src/routes/kasKecil");
 
 // Swagger
 const setupSwagger = require("./src/swagger");
@@ -65,6 +66,7 @@ app.use(`${API_PREFIX}/batch`, batchRoutes);
 app.use(`${API_PREFIX}/laporan`, laporanRourtes);
 app.use(`${API_PREFIX}/shift`, shiftRoutes);
 app.use(`${API_PREFIX}/hold`, holdRoutes);
+app.use(`${API_PREFIX}/kas-kecil`, kasKecRoutes);
 
 // =====================
 // SWAGGER SETUP

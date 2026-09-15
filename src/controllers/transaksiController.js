@@ -205,7 +205,7 @@ exports.createTransaksi = async (req, res) => {
             await tx.pembayaran.createMany({
                 data: metode_bayar.map((p) => ({
                     id_transaksi: transaksi.id_transaksi,
-                    jenis: p.jenis,
+                    metode_bayar: p.jenis,
                     nominal: p.nominal
                 }))
             });
@@ -277,11 +277,24 @@ exports.getAllTransaksi = async (req, res) => {
                         id_user: true,
                         nama: true
                     }
+                },
+                transaksidetail: {
+                    select: {
+                        qty: true
+                    }
                 }
             }
         })
 
-        res.json(transaksi)
+        const data = transaksi.map(({ transaksidetail, ...item }) => ({
+            ...item,
+            total_item: transaksidetail.reduce(
+                (total, detail) => total + Number(detail.qty),
+                0
+            )
+        }))
+
+        res.json(data)
 
     } catch (error) {
         res.status(500).json({
@@ -290,6 +303,7 @@ exports.getAllTransaksi = async (req, res) => {
         })
     }
 }
+
 exports.getDetailTransaksi = async (req, res) => {
     try {
         const { id } = req.params

@@ -66,17 +66,6 @@ model pembelian {
   @@index([id_user], map: "Pembelian_id_user_fkey")
 }
 
-model pembayaran {
-  id_pembayaran Int                    @id @default(autoincrement())
-  id_transaksi  Int
-  jenis         transaksi_metode_bayar
-  nominal       Decimal                @db.Decimal(15, 2)
-  created_at    DateTime               @default(now())
-  transaksi     transaksi              @relation(fields: [id_transaksi], references: [id_transaksi], map: "Pembayaran_id_transaksi_fkey")
-
-  @@index([id_transaksi], map: "Pembayaran_id_transaksi_fkey")
-}
-
 model pembeliandetail {
   id_pembelian_detail Int           @id @default(autoincrement())
   id_pembelian        Int
@@ -103,12 +92,12 @@ model produk {
   updated_at      DateTime
   satuan_id       Int
   batchproduk     batchproduk[]
+  hold_item       hold_item[]
   logstok         logstok[]
   pembeliandetail pembeliandetail[]
   kategori        kategori          @relation(fields: [id_kategori], references: [id_kategori], map: "Produk_id_kategori_fkey")
   satuan          satuan            @relation(fields: [satuan_id], references: [id], map: "fk_produk_satuan")
   transaksidetail transaksidetail[]
-  hold_item       hold_item[]
 
   @@unique([barcode, satuan_id], map: "barcode")
   @@unique([barcode, satuan_id], map: "unique_barcode_satuan")
@@ -138,14 +127,14 @@ model transaksi {
   no_transaksi      String                 @unique(map: "Transaksi_no_transaksi_key")
   tanggal_transaksi DateTime               @default(now())
   metode_bayar      transaksi_metode_bayar
-  status            transaksi_status       @default(SELESAI)
   total             Decimal                @db.Decimal(15, 2)
   id_user           Int
   id_shift          Int?
-  user              user                   @relation(fields: [id_user], references: [id_user], map: "Transaksi_id_user_fkey")
-  shift             shift?                 @relation(fields: [id_shift], references: [id_shift], map: "Transaksi_id_shift_fkey")
-  transaksidetail   transaksidetail[]
+  status            transaksi_status       @default(SELESAI)
   pembayaran        pembayaran[]
+  shift             shift?                 @relation(fields: [id_shift], references: [id_shift], onDelete: NoAction, onUpdate: NoAction, map: "Transaksi_id_shift_fkey")
+  user              user                   @relation(fields: [id_user], references: [id_user], map: "Transaksi_id_user_fkey")
+  transaksidetail   transaksidetail[]
 
   @@index([id_user], map: "Transaksi_id_user_fkey")
   @@index([id_shift], map: "Transaksi_id_shift_fkey")
@@ -187,12 +176,13 @@ model user {
   created_at       DateTime           @default(now())
   email            String             @unique(map: "User_email_key")
   username         String             @unique(map: "User_username_key")
+  audit_log        audit_log[]
+  hold             hold[]
+  kas_kecil        kas_kecil[]
   pembelian        pembelian[]
+  shift            shift[]
   transaksi        transaksi[]
   verificationcode verificationcode[]
-  shift            shift[]
-  hold             hold[]
-  audit_log        audit_log[]
 }
 
 model verificationcode {
@@ -207,28 +197,27 @@ model verificationcode {
   @@index([id_user], map: "VerificationCode_id_user_fkey")
 }
 
-model shift {
-  id_shift    Int          @id @default(autoincrement())
-  id_user     Int
-  status      shift_status @default(OPEN)
-  modal_awal  Decimal      @db.Decimal(15, 2)
-  modal_akhir Decimal?     @db.Decimal(15, 2)
-  waktu_buka  DateTime     @default(now())
-  waktu_tutup DateTime?
-  user        user         @relation(fields: [id_user], references: [id_user], map: "Shift_id_user_fkey")
-  transaksi   transaksi[]
+model audit_log {
+  id_audit   Int      @id @default(autoincrement())
+  id_user    Int?
+  aksi       String   @db.VarChar(100)
+  tabel      String?  @db.VarChar(100)
+  id_data    Int?
+  detail     String?  @db.Text
+  created_at DateTime @default(now()) @db.DateTime(0)
+  user       user?    @relation(fields: [id_user], references: [id_user], onDelete: NoAction, onUpdate: NoAction, map: "AuditLog_id_user_fkey")
 
-  @@index([id_user], map: "Shift_id_user_fkey")
+  @@index([id_user], map: "AuditLog_id_user_fkey")
 }
 
 model hold {
   id_hold        Int         @id @default(autoincrement())
-  nama_pelanggan String
+  nama_pelanggan String      @db.VarChar(255)
   alasan         String?     @db.Text
-  status         hold_status @default(HELD)
+  waktu          DateTime    @default(now()) @db.DateTime(0)
   id_user        Int
-  created_at     DateTime    @default(now())
-  user           user        @relation(fields: [id_user], references: [id_user], map: "Hold_id_user_fkey")
+  created_at     DateTime    @default(now()) @db.DateTime(0)
+  user           user        @relation(fields: [id_user], references: [id_user], onDelete: NoAction, onUpdate: NoAction, map: "Hold_id_user_fkey")
   hold_item      hold_item[]
 
   @@index([id_user], map: "Hold_id_user_fkey")
@@ -240,22 +229,55 @@ model hold_item {
   id_produk    Int
   qty          Int
   harga_jual   Decimal @db.Decimal(15, 2)
-  hold         hold    @relation(fields: [id_hold], references: [id_hold], map: "HoldItem_id_hold_fkey")
-  produk       produk  @relation(fields: [id_produk], references: [id_produk], map: "HoldItem_id_produk_fkey")
+  hold         hold    @relation(fields: [id_hold], references: [id_hold], onDelete: Cascade, onUpdate: NoAction, map: "HoldItem_id_hold_fkey")
+  produk       produk  @relation(fields: [id_produk], references: [id_produk], onDelete: NoAction, onUpdate: NoAction, map: "HoldItem_id_produk_fkey")
 
   @@index([id_hold], map: "HoldItem_id_hold_fkey")
   @@index([id_produk], map: "HoldItem_id_produk_fkey")
 }
 
-model audit_log {
-  id_log     Int      @id @default(autoincrement())
-  id_user    Int
-  aksi       String   @db.VarChar(100)
-  deskripsi  String?  @db.Text
-  created_at DateTime @default(now())
-  user       user     @relation(fields: [id_user], references: [id_user], map: "AuditLog_id_user_fkey")
+model kas_kecil {
+  id              Int            @id @default(autoincrement())
+  id_shift        Int
+  id_user         Int
+  tipe            kas_kecil_tipe
+  nominal         Decimal        @db.Decimal(15, 2)
+  keterangan      String?        @db.Text
+  waktu_transaksi DateTime       @default(now()) @db.DateTime(0)
+  created_at      DateTime       @default(now()) @db.DateTime(0)
+  shift           shift          @relation(fields: [id_shift], references: [id_shift], onDelete: NoAction, onUpdate: NoAction, map: "KasKecil_id_shift_fkey")
+  user            user           @relation(fields: [id_user], references: [id_user], onDelete: NoAction, onUpdate: NoAction, map: "KasKecil_id_user_fkey")
 
-  @@index([id_user], map: "AuditLog_id_user_fkey")
+  @@index([id_shift], map: "KasKecil_id_shift_fkey")
+  @@index([id_user], map: "KasKecil_id_user_fkey")
+}
+
+model pembayaran {
+  id_pembayaran Int                     @id @default(autoincrement())
+  id_transaksi  Int
+  metode_bayar  pembayaran_metode_bayar
+  nominal       Decimal                 @db.Decimal(15, 2)
+  created_at    DateTime                @default(now()) @db.DateTime(0)
+  transaksi     transaksi               @relation(fields: [id_transaksi], references: [id_transaksi], onDelete: Cascade, onUpdate: NoAction, map: "Pembayaran_id_transaksi_fkey")
+
+  @@index([id_transaksi], map: "Pembayaran_id_transaksi_fkey")
+}
+
+model shift {
+  id_shift    Int          @id @default(autoincrement())
+  id_user     Int
+  waktu_buka  DateTime     @default(now()) @db.DateTime(0)
+  waktu_tutup DateTime?    @db.DateTime(0)
+  modal_awal  Decimal      @db.Decimal(15, 2)
+  modal_akhir Decimal?     @db.Decimal(15, 2)
+  total_omzet Decimal      @default(0.00) @db.Decimal(15, 2)
+  status      shift_status @default(OPEN)
+  created_at  DateTime     @default(now()) @db.DateTime(0)
+  kas_kecil   kas_kecil[]
+  user        user         @relation(fields: [id_user], references: [id_user], onDelete: NoAction, onUpdate: NoAction, map: "Shift_id_user_fkey")
+  transaksi   transaksi[]
+
+  @@index([id_user], map: "Shift_id_user_fkey")
 }
 
 enum logstok_tipe {
@@ -282,9 +304,15 @@ enum pembelian_status {
   DIKEMBALIKAN
 }
 
-enum transaksi_status {
-  SELESAI
-  DIBATALKAN
+enum pembayaran_metode_bayar {
+  TUNAI
+  QRIS
+  TRANSFER
+}
+
+enum kas_kecil_tipe {
+  masuk
+  keluar
 }
 
 enum shift_status {
@@ -292,8 +320,8 @@ enum shift_status {
   CLOSED
 }
 
-enum hold_status {
-  HELD
-  RECALLED
-  CANCELLED
+enum transaksi_status {
+  DRAFT
+  SELESAI
+  DIBATALKAN
 }

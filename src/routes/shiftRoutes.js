@@ -123,4 +123,8 @@ router.post("/buka", auth, shiftController.bukaShift)
  */
 router.put("/tutup", auth, shiftController.tutupShift)
 
+router.get("/", auth, shiftController.getAllShift)
+
+router.get("/:id", auth, shiftController.getShiftById)
+
 module.exports = router
