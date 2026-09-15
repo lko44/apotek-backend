@@ -120,7 +120,7 @@ router.post("/", auth, kasKecilController.create)
  *                     limit: { type: integer, example: 20 }
  *                     totalPages: { type: integer, example: 1 }
  *       401:
- *         description: Unauthorized
+ *         description: unauthorized
  *       500:
  *         description: Gagal mengambil daftar kas kecil
  */
