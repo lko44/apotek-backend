@@ -57,6 +57,14 @@ model pembelian {
   id_supplier         Int
   id_user             Int
   created_at          DateTime          @default(now())
+  subtotal            Decimal           @default(0.00) @db.Decimal(15, 2)
+  nilai_ppn           Int               @default(11)
+  jenis_ppn           String            @default("tambah_ppn") @db.VarChar(20)
+  cashback            Decimal           @default(0.00) @db.Decimal(15, 2)
+  jenis_pembayaran    String            @default("Tunai") @db.VarChar(20)
+  akun_kas            String?           @db.VarChar(50)
+  no_surat_pesanan    String?           @db.VarChar(100)
+  catatan             String?           @db.Text
   batchproduk         batchproduk[]
   supplier            supplier          @relation(fields: [id_supplier], references: [id_supplier], map: "Pembelian_id_supplier_fkey")
   user                user              @relation(fields: [id_user], references: [id_user], map: "Pembelian_id_user_fkey")
@@ -72,6 +80,9 @@ model pembeliandetail {
   id_produk           Int
   qty                 Int
   harga_beli          Decimal       @db.Decimal(15, 2)
+  diskon              Decimal       @default(0.00) @db.Decimal(15, 2)
+  diskon_tipe         String        @default("%") @db.VarChar(5)
+  subtotal            Decimal       @default(0.00) @db.Decimal(15, 2)
   batchproduk         batchproduk[]
   pembelian           pembelian     @relation(fields: [id_pembelian], references: [id_pembelian], map: "PembelianDetail_id_pembelian_fkey")
   produk              produk        @relation(fields: [id_produk], references: [id_produk], map: "PembelianDetail_id_produk_fkey")
