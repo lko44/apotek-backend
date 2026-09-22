@@ -139,11 +139,15 @@ exports.getPembelianById = async (req, res) => {
         const { id } = req.params;
 
         if (isNaN(id)) {
-            return res.status(400).json({ message: "ID Pembelian harus berupa angka!" });
+            return res.status(400).json({
+                message: "ID Pembelian harus berupa angka!"
+            });
         }
 
         const pembelian = await prisma.pembelian.findUnique({
-            where: { id_pembelian: parseInt(id) },
+            where: {
+                id_pembelian: parseInt(id)
+            },
             include: {
                 supplier: true,
                 pembeliandetail: {
@@ -156,6 +160,7 @@ exports.getPembelianById = async (req, res) => {
                         batchproduk: {
                             select: {
                                 id_batch: true,
+                                no_batch: true,
                                 expired_date: true,
                                 created_at: true
                             }
@@ -163,24 +168,35 @@ exports.getPembelianById = async (req, res) => {
                     }
                 }
             }
-        }
-        );
+        });
 
         if (!pembelian) {
-            return res.status(404).json({ message: "Data pembelian tidak ditemukan" });
+            return res.status(404).json({
+                message: "Data pembelian tidak ditemukan"
+            });
         }
 
-        // MAPPING UNTUK SINGLE ID
         const formattedDetail = pembelian.pembeliandetail.map(detail => {
-            const batch = detail.batchproduk[0] || {};
+            const batch = detail.batchproduk?.[0] || {};
+
             return {
                 id_pembelian_detail: detail.id_pembelian_detail,
                 qty: detail.qty,
                 harga_beli: detail.harga_beli,
-                no_batch: batch.id_batch ? `BATCH-${String(batch.id_batch).padStart(3, '0')}` : "-",
-                expired_date: batch.expired_date ? batch.expired_date.toISOString().split('T')[0] : "-",
-                tanggal_penerimaan: batch.created_at ? batch.created_at.toISOString().split('T')[0] : "-",
+
+                // Use the actual no_batch stored in BatchProduk
+                no_batch: batch.no_batch || "-",
+
+                expired_date: batch.expired_date
+                    ? batch.expired_date.toISOString().split("T")[0]
+                    : "-",
+
+                tanggal_penerimaan: batch.created_at
+                    ? batch.created_at.toISOString().split("T")[0]
+                    : "-",
+
                 gudang: "Gudang Utama",
+
                 produk: detail.produk
             };
         });
@@ -189,9 +205,13 @@ exports.getPembelianById = async (req, res) => {
             ...pembelian,
             pembeliandetail: formattedDetail
         });
+
     } catch (error) {
         console.error("GET_BY_ID_ERROR:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+
+        res.status(500).json({
+            error: "Internal Server Error"
+        });
     }
 };
 
