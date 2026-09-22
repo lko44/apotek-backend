@@ -134,18 +134,20 @@ model supplier {
 }
 
 model transaksi {
-  id_transaksi      Int                    @id @default(autoincrement())
-  no_transaksi      String                 @unique(map: "Transaksi_no_transaksi_key")
-  tanggal_transaksi DateTime               @default(now())
-  metode_bayar      transaksi_metode_bayar
-  total             Decimal                @db.Decimal(15, 2)
-  id_user           Int
-  id_shift          Int?
-  status            transaksi_status       @default(SELESAI)
-  pembayaran        pembayaran[]
-  shift             shift?                 @relation(fields: [id_shift], references: [id_shift], onDelete: NoAction, onUpdate: NoAction, map: "Transaksi_id_shift_fkey")
-  user              user                   @relation(fields: [id_user], references: [id_user], map: "Transaksi_id_user_fkey")
-  transaksidetail   transaksidetail[]
+  id_transaksi          Int                    @id @default(autoincrement())
+  no_transaksi          String                 @unique(map: "Transaksi_no_transaksi_key")
+  tanggal_transaksi     DateTime               @default(now())
+  metode_bayar          transaksi_metode_bayar
+  total                 Decimal                @db.Decimal(15, 2)
+  diskon_nota_nominal   Decimal                @default(0.00) @db.Decimal(15, 2)
+  nilai_ppn             Decimal                @default(0.00) @db.Decimal(15, 2)
+  id_user               Int
+  id_shift              Int?
+  status                transaksi_status       @default(SELESAI)
+  pembayaran            pembayaran[]
+  shift                 shift?                 @relation(fields: [id_shift], references: [id_shift], onDelete: NoAction, onUpdate: NoAction, map: "Transaksi_id_shift_fkey")
+  user                  user                   @relation(fields: [id_user], references: [id_user], onDelete: NoAction, onUpdate: NoAction, map: "Transaksi_id_user_fkey")
+  transaksidetail       transaksidetail[]
 
   @@index([id_user], map: "Transaksi_id_user_fkey")
   @@index([id_shift], map: "Transaksi_id_shift_fkey")
