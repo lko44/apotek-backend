@@ -79,7 +79,7 @@ setupSwagger(app);
 // Tambahkan '0.0.0.0' agar server listen ke semua interface jaringan VPS
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`
-✅ Server Aktif!
+✅ Server Aktif!!
 🚀 Running on Port: ${PORT}
 📖 Base API Endpoint: ${API_PREFIX}
 📖 Swagger Docs: /api-docs
