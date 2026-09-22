@@ -21,6 +21,14 @@ exports.createPembelian = async (data) => {
     throw { status: 400, message: "Data items pembelian tidak boleh kosong." };
   }
 
+  // 1. Validasi & Normalisasi Status Enum
+  const validStatusEnum = ["LUNAS", "BELUM_DIBAYAR", "DIKEMBALIKAN"];
+  let finalStatus = "LUNAS";
+  if (status && validStatusEnum.includes(String(status).toUpperCase())) {
+    finalStatus = String(status).toUpperCase();
+  }
+
+  // 2. Logika PPN & Cashback
   const validJenisPpn = ["non_ppn", "sudah_termasuk", "tambah_ppn"];
   const jenisPpnFinal = validJenisPpn.includes(jenis_ppn)
     ? jenis_ppn
@@ -32,6 +40,7 @@ exports.createPembelian = async (data) => {
 
   const cashbackFinal = Number(cashback) || 0;
 
+  // 3. Pre-fetch Produk
   const produkMap = new Map();
 
   for (const item of items) {
@@ -40,7 +49,7 @@ exports.createPembelian = async (data) => {
     if (item.barcode) {
       produk = await prisma.produk.findFirst({
         where: {
-          barcode: item.barcode
+          barcode: String(item.barcode)
         }
       });
     } else if (item.id_produk) {
@@ -72,11 +81,11 @@ exports.createPembelian = async (data) => {
     produkMap.set(key, produk);
   }
 
+  // 4. Eksekusi Transaksi Database
   const result = await prisma.$transaction(async (tx) => {
-
     let subtotalPembelian = 0;
 
-    const itemsWithSubtotal = items.map(item => {
+    const itemsWithSubtotal = items.map((item) => {
       const parsedQty = parseInt(item.qty);
       const parsedHarga = parseFloat(item.harga_beli);
       const parsedHargaJual = parseFloat(item.harga_jual);
@@ -91,37 +100,34 @@ exports.createPembelian = async (data) => {
       if (isNaN(parsedQty) || parsedQty <= 0) {
         throw {
           status: 400,
-          message: `Kuantitas (qty) untuk barcode ${item.barcode} tidak valid.`
+          message: `Kuantitas (qty) untuk item ${item.barcode || item.id_produk} tidak valid.`
         };
       }
 
       if (isNaN(parsedHarga) || parsedHarga < 0) {
         throw {
           status: 400,
-          message: `Harga beli untuk barcode ${item.barcode} tidak valid.`
+          message: `Harga beli untuk item ${item.barcode || item.id_produk} tidak valid.`
         };
       }
 
       if (isNaN(parsedHargaJual) || parsedHargaJual < 0) {
         throw {
           status: 400,
-          message: `Harga jual untuk barcode ${item.barcode} tidak valid.`
+          message: `Harga jual untuk item ${item.barcode || item.id_produk} tidak valid.`
         };
       }
 
-      // Hitung diskon per unit
+      // Hitung Diskon per Unit
       const diskonPerUnit =
         diskonTipe === "%"
           ? parsedHarga * (diskonInput / 100)
           : diskonInput;
 
-      // Harga setelah diskon
-      const hargaSetelahDiskon = Math.max(
-        parsedHarga - diskonPerUnit,
-        0
-      );
+      // Harga Setelah Diskon
+      const hargaSetelahDiskon = Math.max(parsedHarga - diskonPerUnit, 0);
 
-      // Subtotal item
+      // Subtotal Item
       const subtotalItem = hargaSetelahDiskon * parsedQty;
 
       subtotalPembelian += subtotalItem;
@@ -136,74 +142,72 @@ exports.createPembelian = async (data) => {
       };
     });
 
-    // PPN hanya ditambahkan jika jenis_ppn = tambah_ppn
+    // PPN Nominal
     const ppnNominal =
       jenisPpnFinal === "tambah_ppn"
         ? subtotalPembelian * (nilaiPpnFinal / 100)
         : 0;
 
-    // Total akhir
-    const totalAkhir =
-      subtotalPembelian + ppnNominal - cashbackFinal;
+    // Total Akhir
+    const totalAkhir = subtotalPembelian + ppnNominal - cashbackFinal;
 
-    const pembelian = await tx.pembelian.create({
-      data: {
-        supplier: {
-          connect: {
-            id_supplier: parseInt(id_supplier)
-          }
-        },
-
-        user: {
-          connect: {
-            id_user: parseInt(id_user)
-          }
-        },
-
-        no_faktur,
-        tanggal_faktur: new Date(tanggal_faktur),
-
-        subtotal: subtotalPembelian,
-        nilai_ppn: nilaiPpnFinal,
-        jenis_ppn: jenisPpnFinal,
-        cashback: cashbackFinal,
-
-        jenis_pembayaran: jenis_pembayaran || "Tunai",
-        akun_kas: akun_kas || null,
-        no_surat_pesanan: no_surat_pesanan || null,
-        catatan: catatan || null,
-
-        total: totalAkhir,
-        status,
-
-        pembeliandetail: {
-          create: itemsWithSubtotal.map((item) => {
-            const key = item.barcode
-              ? `bc_${item.barcode}`
-              : `id_${item.id_produk}`;
-
-            const produk = produkMap.get(key);
-
-            return {
-              qty: item.parsedQty,
-              harga_beli: item.parsedHarga,
-              diskon: item.diskonInput,
-              diskon_tipe: item.diskonTipe,
-              subtotal: item.subtotalItem,
-              id_produk: produk.id_produk
-            };
-          })
+    // Build Payload Pembelian Secara Aman
+    const pembelianPayload = {
+      supplier: {
+        connect: {
+          id_supplier: parseInt(id_supplier)
         }
       },
+      user: {
+        connect: {
+          id_user: parseInt(id_user)
+        }
+      },
+      no_faktur,
+      tanggal_faktur: new Date(tanggal_faktur),
+      total: totalAkhir,
+      status: finalStatus,
+      subtotal: subtotalPembelian,
+      nilai_ppn: nilaiPpnFinal,
+      jenis_ppn: jenisPpnFinal,
+      cashback: cashbackFinal,
+      pembeliandetail: {
+        create: itemsWithSubtotal.map((item) => {
+          const key = item.barcode
+            ? `bc_${item.barcode}`
+            : `id_${item.id_produk}`;
 
+          const produk = produkMap.get(key);
+
+          const detailObj = {
+            qty: item.parsedQty,
+            harga_beli: item.parsedHarga,
+            diskon: item.diskonInput,
+            diskon_tipe: item.diskonTipe,
+            subtotal: item.subtotalItem,
+            id_produk: produk.id_produk
+          };
+
+          return detailObj;
+        })
+      }
+    };
+
+    // Sertakan opsi opsional jika adaisinya
+    if (jenis_pembayaran) pembelianPayload.jenis_pembayaran = jenis_pembayaran;
+    if (akun_kas) pembelianPayload.akun_kas = akun_kas;
+    if (no_surat_pesanan) pembelianPayload.no_surat_pesanan = no_surat_pesanan;
+    if (catatan) pembelianPayload.catatan = catatan;
+
+    // Insert data Pembelian + PembelianDetail
+    const pembelian = await tx.pembelian.create({
+      data: pembelianPayload,
       include: {
         pembeliandetail: true
       }
     });
 
-    console.log("=== MULAI GENERATE BATCH ===");
-    console.log("Jumlah item:", items.length);
-
+    // Loop untuk BatchProduk, LogStok, dan Update Harga Jual
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
 
@@ -214,33 +218,32 @@ exports.createPembelian = async (data) => {
       const produk = produkMap.get(key);
 
       const detail = pembelian.pembeliandetail.find(
-        d => d.id_produk === produk.id_produk
+        (d) => d.id_produk === produk.id_produk
       );
-
-      console.log("ITEM:", item);
-      console.log("PRODUK:", produk);
-      console.log("DETAIL:", detail);
 
       const expDate = item.expired_date
         ? new Date(item.expired_date)
         : new Date();
 
-      console.log("MAU CREATE BATCH");
+      // Build Batch Payload Secara Aman
+      const batchPayload = {
+        id_produk: produk.id_produk,
+        id_pembelian: pembelian.id_pembelian,
+        expired_date: expDate,
+        qty_masuk: parseInt(item.qty),
+        qty_sisa: parseInt(item.qty)
+      };
+
+      if (detail && detail.id_pembelian_detail) {
+        batchPayload.id_pembelian_detail = detail.id_pembelian_detail;
+      }
+      batchPayload.no_batch = `BATCH-${Date.now()}-${i}`;
 
       await tx.batchproduk.create({
-        data: {
-          id_produk: produk.id_produk,
-          id_pembelian: pembelian.id_pembelian,
-          id_pembelian_detail: detail.id_pembelian_detail,
-          expired_date: expDate,
-          qty_masuk: parseInt(item.qty),
-          qty_sisa: parseInt(item.qty),
-          no_batch: `BATCH-${Date.now()}-${i}`
-        }
+        data: batchPayload
       });
 
-      console.log("BATCH BERHASIL DIBUAT");
-
+      // Insert Log Stok
       await tx.logstok.create({
         data: {
           id_produk: produk.id_produk,
@@ -250,9 +253,7 @@ exports.createPembelian = async (data) => {
         }
       });
 
-      console.log("LOG STOK BERHASIL");
-
-      // Update harga jual produk
+      // Update harga jual produk jika diberikan
       if (parseFloat(item.harga_jual) > 0) {
         await tx.produk.update({
           where: {
@@ -262,8 +263,6 @@ exports.createPembelian = async (data) => {
             harga_jual: parseFloat(item.harga_jual)
           }
         });
-
-        console.log("HARGA JUAL PRODUK BERHASIL DIUPDATE");
       }
     }
 
