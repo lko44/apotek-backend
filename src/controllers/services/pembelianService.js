@@ -32,7 +32,7 @@ exports.createPembelian = async (data) => {
 
   const cashbackFinal = Number(cashback) || 0;
 
-  const produkExists = [];
+  const produkMap = new Map();
 
   for (const item of items) {
     let produk;
@@ -65,7 +65,11 @@ exports.createPembelian = async (data) => {
       };
     }
 
-    produkExists.push(produk);
+    const key = item.barcode
+      ? `bc_${item.barcode}`
+      : `id_${item.id_produk}`;
+
+    produkMap.set(key, produk);
   }
 
   const result = await prisma.$transaction(async (tx) => {
@@ -173,8 +177,12 @@ exports.createPembelian = async (data) => {
         status,
 
         pembeliandetail: {
-          create: itemsWithSubtotal.map((item, index) => {
-            const produk = produkExists[index];
+          create: itemsWithSubtotal.map((item) => {
+            const key = item.barcode
+              ? `bc_${item.barcode}`
+              : `id_${item.id_produk}`;
+
+            const produk = produkMap.get(key);
 
             return {
               qty: item.parsedQty,
@@ -198,7 +206,12 @@ exports.createPembelian = async (data) => {
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const produk = produkExists[i];
+
+      const key = item.barcode
+        ? `bc_${item.barcode}`
+        : `id_${item.id_produk}`;
+
+      const produk = produkMap.get(key);
 
       const detail = pembelian.pembeliandetail.find(
         d => d.id_produk === produk.id_produk
