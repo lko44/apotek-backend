@@ -275,18 +275,21 @@ model pembayaran {
 }
 
 model shift {
-  id_shift    Int          @id @default(autoincrement())
-  id_user     Int
-  waktu_buka  DateTime     @default(now()) @db.DateTime(0)
-  waktu_tutup DateTime?    @db.DateTime(0)
-  modal_awal  Decimal      @db.Decimal(15, 2)
-  modal_akhir Decimal?     @db.Decimal(15, 2)
-  total_omzet Decimal      @default(0.00) @db.Decimal(15, 2)
-  status      shift_status @default(OPEN)
-  created_at  DateTime     @default(now()) @db.DateTime(0)
-  kas_kecil   kas_kecil[]
-  user        user         @relation(fields: [id_user], references: [id_user], onDelete: NoAction, onUpdate: NoAction, map: "Shift_id_user_fkey")
-  transaksi   transaksi[]
+  id_shift        Int          @id @default(autoincrement())
+  id_user         Int
+  waktu_buka      DateTime     @default(now()) @db.DateTime(0)
+  waktu_tutup     DateTime?    @db.DateTime(0)
+  modal_awal      Decimal      @db.Decimal(15, 2)
+  modal_akhir     Decimal?     @db.Decimal(15, 2)
+  total_omzet     Decimal      @default(0.00) @db.Decimal(15, 2)
+  total_tunai     Decimal      @default(0.00) @db.Decimal(15, 2)
+  total_kas_kecil Decimal      @default(0.00) @db.Decimal(15, 2)
+  status          shift_status @default(OPEN)
+  created_at      DateTime     @default(now()) @db.DateTime(0)
+  updated_at      DateTime     @default(now()) @updatedAt @db.DateTime(0)
+  kas_kecil       kas_kecil[]
+  user            user         @relation(fields: [id_user], references: [id_user], onDelete: NoAction, onUpdate: NoAction, map: "Shift_id_user_fkey")
+  transaksi       transaksi[]
 
   @@index([id_user], map: "Shift_id_user_fkey")
 }
