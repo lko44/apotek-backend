@@ -3,7 +3,7 @@ const { logAksi } = require("../lib/auditLog");
 
 exports.createTransaksi = async (req, res) => {
     try {
-        const { metode_bayar, items } = req.body;
+        const { metode_bayar, items, diskon_nota_nominal, nilai_ppn } = req.body;
         const id_user = req.user.id;
         const id_shift = req.shift.id_shift; // set by requireActiveShift middleware
 
@@ -189,15 +189,21 @@ exports.createTransaksi = async (req, res) => {
                 grandTotal += subtotalItem;
             }
 
-            // 8. Validate split payment total
+            // 8. Calculate final transaction total
+            const diskonNota = Number(diskon_nota_nominal || 0);
+            const ppn = Number(nilai_ppn || 0);
+
+            const grandTotalAkhir = grandTotal - diskonNota + ppn;
+
+            // Validate split payment total
             const totalBayar = metode_bayar.reduce(
                 (sum, p) => sum + p.nominal,
                 0
             );
 
-            if (Math.abs(totalBayar - grandTotal) > 0.01) {
+            if (Math.abs(totalBayar - grandTotalAkhir) > 0.01) {
                 throw new Error(
-                    `Total pembayaran (Rp${totalBayar.toLocaleString("id-ID")}) tidak sama dengan total transaksi (Rp${grandTotal.toLocaleString("id-ID")}).`
+                    `Total pembayaran (Rp${totalBayar.toLocaleString("id-ID")}) tidak sama dengan total transaksi (Rp${grandTotalAkhir.toLocaleString("id-ID")}).`
                 );
             }
 
@@ -216,7 +222,9 @@ exports.createTransaksi = async (req, res) => {
                     id_transaksi: transaksi.id_transaksi
                 },
                 data: {
-                    total: grandTotal
+                    total: grandTotalAkhir,
+                    diskon_nota_nominal: diskonNota,
+                    nilai_ppn: ppn
                 },
                 include: {
                     transaksidetail: {
