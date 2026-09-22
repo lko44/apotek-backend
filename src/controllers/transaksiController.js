@@ -3,11 +3,18 @@ const { logAksi } = require("../lib/auditLog");
 
 exports.createTransaksi = async (req, res) => {
     try {
-        const { metode_bayar, items, diskon_nota_nominal, nilai_ppn } = req.body;
+        const {
+            metode_bayar,
+            items,
+            diskon_nota_nominal,
+            ppn_persen,
+            nilai_ppn
+        } = req.body;
+
         const id_user = req.user.id;
         const id_shift = req.shift.id_shift; // set by requireActiveShift middleware
 
-        if (!items || items.length === 0) {
+        if (!items || !Array.isArray(items) || items.length === 0) {
             return res.status(400).json({
                 message: "Keranjang belanja kosong!"
             });
@@ -40,19 +47,86 @@ exports.createTransaksi = async (req, res) => {
             }
         }
 
+        // ==========================================
+        // 1. Hitung subtotal items
+        //    Diskon item = diskon PER UNIT
+        // ==========================================
+
+        const subtotalItems = items.reduce((sum, item) => {
+            const harga = Number(item.harga || item.harga_jual) || 0;
+            const qty = Number(item.qty) || 0;
+            const diskonPerUnit = Number(item.diskon_item) || 0;
+
+            const hargaEfektif = Math.max(
+                0,
+                harga - diskonPerUnit
+            );
+
+            return sum + (hargaEfektif * qty);
+        }, 0);
+
+        // ==========================================
+        // 2. Hitung diskon nota + PPN
+        // ==========================================
+
+        const diskonNota =
+            Number(diskon_nota_nominal) || 0;
+
+        const totalSetelahDiskonNota = Math.max(
+            0,
+            subtotalItems - diskonNota
+        );
+
+        let ppn = Number(nilai_ppn) || 0;
+
+        // Jika ppn_persen dikirim, hitung ulang PPN
+        if (ppn_persen && Number(ppn_persen) > 0) {
+            ppn = Math.round(
+                totalSetelahDiskonNota *
+                (Number(ppn_persen) / 100)
+            );
+        }
+
+        const grandTotalAkhir =
+            totalSetelahDiskonNota + ppn;
+
+        // ==========================================
+        // 3. Validate split payment
+        // ==========================================
+
+        const totalBayar = metode_bayar.reduce(
+            (sum, p) => sum + p.nominal,
+            0
+        );
+
+        if (Math.abs(totalBayar - grandTotalAkhir) > 0.01) {
+            return res.status(400).json({
+                message:
+                    `Total pembayaran (Rp${totalBayar.toLocaleString("id-ID")}) ` +
+                    `tidak sama dengan total transaksi ` +
+                    `(Rp${grandTotalAkhir.toLocaleString("id-ID")}).`
+            });
+        }
+
+        // ==========================================
+        // 4. Database transaction
+        // ==========================================
+
         const result = await prisma.$transaction(async (tx) => {
 
-            // 1. Create base transaction
+            // Create base transaction
             const transaksi = await tx.transaksi.create({
                 data: {
                     no_transaksi: "TRX-" + Date.now(),
 
-                    // Legacy column: keep first payment method
-                    // only for historical compatibility/information.
+                    // Legacy column
                     metode_bayar: metode_bayar[0].jenis,
 
                     status: "SELESAI",
                     total: 0,
+                    diskon_nota_nominal: diskonNota,
+                    nilai_ppn: ppn,
+
                     id_user: parseInt(id_user),
                     id_shift
                 }
@@ -60,13 +134,21 @@ exports.createTransaksi = async (req, res) => {
 
             let grandTotal = 0;
 
+            // ==========================================
+            // Process each item
+            // ==========================================
+
             for (const item of items) {
 
-                // 2. Find product by barcode or ID
+                // 5. Find product by ID or barcode
                 const produk = await tx.produk.findFirst({
                     where: item.produk_id
-                        ? { id_produk: Number(item.produk_id) }
-                        : { barcode: item.barcode }
+                        ? {
+                            id_produk: Number(item.produk_id)
+                        }
+                        : {
+                            barcode: item.barcode
+                        }
                 });
 
                 if (!produk) {
@@ -90,13 +172,40 @@ exports.createTransaksi = async (req, res) => {
                     );
                 }
 
+                // ==========================================
+                // Diskon per item
+                // ==========================================
+
+                const diskonPerUnit =
+                    Number(item.diskon_item) || 0;
+
+                if (diskonPerUnit < 0) {
+                    throw new Error(
+                        `Diskon produk ${produk.nama_produk} tidak boleh negatif`
+                    );
+                }
+
+                if (
+                    diskonPerUnit >
+                    Number(produk.harga_jual)
+                ) {
+                    throw new Error(
+                        `Diskon produk ${produk.nama_produk} tidak boleh lebih besar dari harga jual`
+                    );
+                }
+
+                // ==========================================
+                // 6. Fetch batches using FEFO
+                // ==========================================
+
                 let sisaQtyYangMauDibeli = item.qty;
 
-                // 3. Fetch batches using FEFO
                 const batches = await tx.batchproduk.findMany({
                     where: {
                         id_produk: produk.id_produk,
-                        qty_sisa: { gt: 0 }
+                        qty_sisa: {
+                            gt: 0
+                        }
                     },
                     orderBy: {
                         expired_date: "asc"
@@ -114,21 +223,43 @@ exports.createTransaksi = async (req, res) => {
                     );
                 }
 
-                // 4. Create transaction detail
-                const detail = await tx.transaksidetail.create({
-                    data: {
-                        id_transaksi: transaksi.id_transaksi,
-                        id_produk: produk.id_produk,
-                        qty: item.qty,
-                        harga_jual: produk.harga_jual,
-                        subtotal: 0
-                    }
-                });
+                // ==========================================
+                // 7. Create transaction detail
+                // ==========================================
+
+                const detail =
+                    await tx.transaksidetail.create({
+                        data: {
+                            id_transaksi:
+                                transaksi.id_transaksi,
+
+                            id_produk:
+                                produk.id_produk,
+
+                            qty:
+                                item.qty,
+
+                            harga_jual:
+                                produk.harga_jual,
+
+                            diskon_item:
+                                diskonPerUnit,
+
+                            diskon_tipe:
+                                item.diskon_tipe || "Rp",
+
+                            subtotal: 0
+                        }
+                    });
 
                 let subtotalItem = 0;
 
-                // 5. Deduct stock using FEFO
+                // ==========================================
+                // 8. Deduct stock using FEFO
+                // ==========================================
+
                 for (const batch of batches) {
+
                     if (sisaQtyYangMauDibeli <= 0) {
                         break;
                     }
@@ -145,7 +276,8 @@ exports.createTransaksi = async (req, res) => {
                         },
                         data: {
                             qty_sisa: {
-                                decrement: ambilDariBatchIni
+                                decrement:
+                                    ambilDariBatchIni
                             }
                         }
                     });
@@ -153,110 +285,172 @@ exports.createTransaksi = async (req, res) => {
                     // Record exactly which batch was used
                     await tx.transaksibatch.create({
                         data: {
-                            id_transaksi_detail: detail.id_transaksi_detail,
-                            id_batch: batch.id_batch,
-                            qty_keluar: ambilDariBatchIni
+                            id_transaksi_detail:
+                                detail.id_transaksi_detail,
+
+                            id_batch:
+                                batch.id_batch,
+
+                            qty_keluar:
+                                ambilDariBatchIni
                         }
                     });
 
-                    sisaQtyYangMauDibeli -= ambilDariBatchIni;
+                    sisaQtyYangMauDibeli -=
+                        ambilDariBatchIni;
+
+                    // Harga efektif setelah diskon per unit
+                    const hargaEfektif =
+                        Math.max(
+                            0,
+                            Number(produk.harga_jual) -
+                            diskonPerUnit
+                        );
 
                     subtotalItem +=
                         ambilDariBatchIni *
-                        Number(produk.harga_jual);
+                        hargaEfektif;
                 }
 
-                // 6. Update transaction detail subtotal
+                // ==========================================
+                // 9. Update transaction detail subtotal
+                // ==========================================
+
                 await tx.transaksidetail.update({
                     where: {
-                        id_transaksi_detail: detail.id_transaksi_detail
+                        id_transaksi_detail:
+                            detail.id_transaksi_detail
                     },
                     data: {
-                        subtotal: subtotalItem
+                        subtotal:
+                            subtotalItem
                     }
                 });
 
-                // 7. Write stock movement log
+                // ==========================================
+                // 10. Write stock movement log
+                // ==========================================
+
                 await tx.logstok.create({
                     data: {
-                        id_produk: produk.id_produk,
-                        tipe: "KELUAR",
-                        qty: item.qty,
-                        sumber: "TRANSAKSI"
+                        id_produk:
+                            produk.id_produk,
+
+                        tipe:
+                            "KELUAR",
+
+                        qty:
+                            item.qty,
+
+                        sumber:
+                            "TRANSAKSI"
                     }
                 });
 
                 grandTotal += subtotalItem;
             }
 
-            // 8. Calculate final transaction total
-            const diskonNota = Number(diskon_nota_nominal || 0);
-            const ppn = Number(nilai_ppn || 0);
+            // ==========================================
+            // 11. Final total
+            // ==========================================
 
-            const grandTotalAkhir = grandTotal - diskonNota + ppn;
+            const totalSetelahDiskon =
+                Math.max(
+                    0,
+                    grandTotal - diskonNota
+                );
 
-            // Validate split payment total
-            const totalBayar = metode_bayar.reduce(
-                (sum, p) => sum + p.nominal,
-                0
-            );
+            const grandTotalFinal =
+                totalSetelahDiskon + ppn;
 
-            if (Math.abs(totalBayar - grandTotalAkhir) > 0.01) {
+            // Safety check
+            if (
+                Math.abs(
+                    grandTotalFinal -
+                    grandTotalAkhir
+                ) > 0.01
+            ) {
                 throw new Error(
-                    `Total pembayaran (Rp${totalBayar.toLocaleString("id-ID")}) tidak sama dengan total transaksi (Rp${grandTotalAkhir.toLocaleString("id-ID")}).`
+                    "Total transaksi tidak konsisten dengan data item."
                 );
             }
 
-            // 9. Save payment details
+            // ==========================================
+            // 12. Save payment details
+            // ==========================================
+
             await tx.pembayaran.createMany({
                 data: metode_bayar.map((p) => ({
-                    id_transaksi: transaksi.id_transaksi,
-                    metode_bayar: p.jenis,
-                    nominal: p.nominal
+                    id_transaksi:
+                        transaksi.id_transaksi,
+
+                    metode_bayar:
+                        p.jenis,
+
+                    nominal:
+                        p.nominal
                 }))
             });
 
-            // 10. Update final transaction + return payment details
-            const transaksiFinal = await tx.transaksi.update({
-                where: {
-                    id_transaksi: transaksi.id_transaksi
-                },
-                data: {
-                    total: grandTotalAkhir,
-                    diskon_nota_nominal: diskonNota,
-                    nilai_ppn: ppn
-                },
-                include: {
-                    transaksidetail: {
-                        include: {
-                            produk: {
-                                select: {
-                                    id_produk: true,
-                                    nama_produk: true,
-                                    barcode: true,
-                                    harga_jual: true
-                                }
-                            },
-                            transaksibatch: {
-                                include: {
-                                    batchproduk: {
-                                        select: {
-                                            id_batch: true,
-                                            no_batch: true,
-                                            expired_date: true,
-                                            qty_sisa: true
+            // ==========================================
+            // 13. Update final transaction
+            // ==========================================
+
+            const transaksiFinal =
+                await tx.transaksi.update({
+                    where: {
+                        id_transaksi:
+                            transaksi.id_transaksi
+                    },
+
+                    data: {
+                        total:
+                            grandTotalFinal,
+
+                        diskon_nota_nominal:
+                            diskonNota,
+
+                        nilai_ppn:
+                            ppn
+                    },
+
+                    include: {
+                        transaksidetail: {
+                            include: {
+                                produk: {
+                                    select: {
+                                        id_produk: true,
+                                        nama_produk: true,
+                                        barcode: true,
+                                        harga_jual: true
+                                    }
+                                },
+
+                                transaksibatch: {
+                                    include: {
+                                        batchproduk: {
+                                            select: {
+                                                id_batch: true,
+                                                no_batch: true,
+                                                expired_date: true,
+                                                qty_sisa: true
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                    },
-                    pembayaran: true
-                }
-            });
+                        },
+
+                        pembayaran: true
+                    }
+                });
 
             return transaksiFinal;
         });
+
+        // ==========================================
+        // Response
+        // ==========================================
 
         res.status(201).json({
             message: "Transaksi berhasil",
@@ -264,13 +458,18 @@ exports.createTransaksi = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("CREATE_TRANSAKSI_ERROR:", error);
+        console.error(
+            "CREATE_TRANSAKSI_ERROR:",
+            error
+        );
 
         res.status(400).json({
             message: error.message
         });
     }
 };
+
+
 
 
 exports.getAllTransaksi = async (req, res) => {

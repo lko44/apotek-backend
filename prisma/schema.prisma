@@ -171,6 +171,8 @@ model transaksidetail {
   id_produk           Int
   qty                 Int
   harga_jual          Decimal          @db.Decimal(15, 2)
+  diskon_item         Decimal          @default(0.00) @db.Decimal(15, 2)
+  diskon_tipe         String           @default("Rp") @db.VarChar(5)
   subtotal            Decimal          @db.Decimal(15, 2)
   transaksibatch      transaksibatch[]
   produk              produk           @relation(fields: [id_produk], references: [id_produk], map: "TransaksiDetail_id_produk_fkey")
